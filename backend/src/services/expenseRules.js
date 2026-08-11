@@ -1,5 +1,5 @@
 /**
- * Módulo de Reglas de Negocio de FinFix (Versión con Cuotas con Interés y Escalación de Prioridad)
+ * Módulo de Reglas de Negocio de FinFix
  */
 
 export function isDuplicateExpenseTitle(existingExpenses, newTitle, currentExpenseId = null) {
@@ -86,14 +86,17 @@ export function calculateCategorizedMetrics(totalBudget, expenses) {
 }
 
 /**
- * Regla 4: Determina el estado de vencimiento y escala la prioridad a 'ALTA' si vence en <= 3 días o está vencido.
+ * Regla 4: Determina el estado y calcula dinámicamente la prioridad:
+ * - Vencida o de 0 a 3 días: ALTA
+ * - De 4 a 15 días: MEDIA
+ * - Más de 15 días: BAJA
  */
-export function determineExpenseStatus(dueDateString, isPaid, currentDate = new Date()) {
-  if (isPaid) return 'PAGADO';
-  if (!dueDateString) return 'PENDIENTE';
+export function determineExpenseStatusAndPriority(dueDateString, isPaid, currentDate = new Date()) {
+  if (isPaid) return { status: 'PAGADO', priority: 'BAJA' };
+  if (!dueDateString) return { status: 'PENDIENTE', priority: 'MEDIA' };
 
   const parts = String(dueDateString).split('T')[0].split('-');
-  if (parts.length < 3) return 'PENDIENTE';
+  if (parts.length < 3) return { status: 'PENDIENTE', priority: 'MEDIA' };
 
   const dueYear = parseInt(parts[0], 10);
   const dueMonth = parseInt(parts[1], 10) - 1;
@@ -103,31 +106,21 @@ export function determineExpenseStatus(dueDateString, isPaid, currentDate = new 
   const curr = new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate());
 
   if (curr > due) {
-    return 'VENCIDO';
+    return { status: 'VENCIDO', priority: 'ALTA' };
   }
 
   const diffTime = due.getTime() - curr.getTime();
   const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
   if (diffDays >= 0 && diffDays <= 3) {
-    return 'PROXIMO_VENCER';
+    return { status: 'PROXIMO_VENCER', priority: 'ALTA' };
   }
 
-  return 'PENDIENTE';
-}
+  if (diffDays >= 4 && diffDays <= 15) {
+    return { status: 'PENDIENTE', priority: 'MEDIA' };
+  }
 
-/**
- * Regla 5: Calcula el monto de la cuota siguiente aplicando tasa de interés porcentual.
- */
-export function calculateNextInstallmentAmount(currentAmount, hasInterest, interestRate) {
-  const amount = Number(currentAmount) || 0;
-  if (!hasInterest) return amount;
-  
-  const rate = Number(interestRate) || 0;
-  if (rate <= 0) return amount;
-
-  const nextAmount = amount * (1 + (rate / 100));
-  return Math.round(nextAmount);
+  return { status: 'PENDIENTE', priority: 'BAJA' };
 }
 
 export function validateExpenseInput(title, estimatedAmount, dueDateString, existingExpenses = [], currentId = null) {

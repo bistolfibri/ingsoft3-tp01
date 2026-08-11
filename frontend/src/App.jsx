@@ -22,7 +22,6 @@ import {
   Layers,
   AlertTriangle,
   ArrowRight,
-  ShieldCheck,
   Percent
 } from 'lucide-react';
 
@@ -78,8 +77,8 @@ const DEFAULT_DATA = {
       category_icon: 'home',
       expense_type: 'FIJO',
       estimated_amount: 45000,
-      due_date: '2026-08-15',
-      priority: 'ALTA',
+      due_date: '2026-08-25',
+      priority: 'MEDIA',
       status: 'PENDIENTE',
       dynamic_status: 'PENDIENTE',
       actual_paid_amount: null,
@@ -124,7 +123,7 @@ const DEFAULT_DATA = {
       expense_type: 'EVENTUAL',
       estimated_amount: 12000,
       due_date: '2026-11-11',
-      priority: 'MEDIA',
+      priority: 'BAJA',
       status: 'PENDIENTE',
       dynamic_status: 'PENDIENTE',
       installment_current: 1,
@@ -144,16 +143,19 @@ export default function App() {
   const [showBudgetModal, setShowBudgetModal] = useState(false);
   const [selectedExpense, setSelectedExpense] = useState(null);
 
-  // Cálculo de fechas sin años antiguos (2022/2023/2024 eliminados de rangos)
+  // Fechas acotadas estrictas (1 año exacto atrás hasta 1 año exacto adelante)
   const todayObj = new Date();
-  const todayStr = todayObj.toISOString().split('T')[0];
+  const yearPad = todayObj.getFullYear();
+  const monthPad = String(todayObj.getMonth() + 1).padStart(2, '0');
+  const dayPad = String(todayObj.getDate()).padStart(2, '0');
+  const todayStr = `${yearPad}-${monthPad}-${dayPad}`;
 
-  // 1 año justo atrás y 1 año justo adelante desde hoy
-  const minDueDateLimit = `${todayObj.getFullYear() - 1}-${String(todayObj.getMonth() + 1).padStart(2, '0')}-${String(todayObj.getDate()).padStart(2, '0')}`;
-  const maxDueDateLimit = `${todayObj.getFullYear() + 1}-${String(todayObj.getMonth() + 1).padStart(2, '0')}-${String(todayObj.getDate()).padStart(2, '0')}`;
+  // Sin años antiguos (2022, 2023, 2024 eliminados)
+  const minDueDateLimit = `${yearPad - 1}-${monthPad}-${dayPad}`;
+  const maxDueDateLimit = `${yearPad + 1}-${monthPad}-${dayPad}`;
 
   // Rango para registrar pago (Máximo el día de HOY, Mínimo 1 mes atrás)
-  const oneMonthAgoObj = new Date(todayObj.getFullYear(), todayObj.getMonth() - 1, todayObj.getDate());
+  const oneMonthAgoObj = new Date(yearPad, todayObj.getMonth() - 1, todayObj.getDate());
   const minPaymentDateLimit = `${oneMonthAgoObj.getFullYear()}-${String(oneMonthAgoObj.getMonth() + 1).padStart(2, '0')}-${String(oneMonthAgoObj.getDate()).padStart(2, '0')}`;
   const maxPaymentDateLimit = todayStr;
 
@@ -163,12 +165,12 @@ export default function App() {
     expense_type: 'FIJO',
     estimated_amount: '',
     due_date: todayStr,
-    priority: 'MEDIA',
     notes: '',
     installment_current: 1,
     installment_total: 3,
     has_interest: 'NO',
-    interest_rate: '5'
+    interest_rate: '5',
+    remember_next_month: 'YES'
   });
 
   const [payData, setPayData] = useState({
@@ -179,13 +181,16 @@ export default function App() {
 
   const [newBudget, setNewBudget] = useState('');
 
-  // Función timezone-safe de vencimiento + Escalación de Prioridad a ALTA si está próximo (<=3 días) o VENCIDO
-  const computeStatusAndPriority = (dueDateStr, isPaid, originalPriority = 'MEDIA') => {
-    if (isPaid) return { status: 'PAGADO', priority: originalPriority };
-    if (!dueDateStr) return { status: 'PENDIENTE', priority: originalPriority };
+  // Lógica Dinámica de Prioridades:
+  // - Vencida o <= 3 días: ALTA
+  // - 4 a 15 días: MEDIA
+  // - Más de 15 días: BAJA
+  const computeStatusAndPriority = (dueDateStr, isPaid) => {
+    if (isPaid) return { status: 'PAGADO', priority: 'BAJA' };
+    if (!dueDateStr) return { status: 'PENDIENTE', priority: 'MEDIA' };
 
     const parts = dueDateStr.split('T')[0].split('-');
-    if (parts.length < 3) return { status: 'PENDIENTE', priority: originalPriority };
+    if (parts.length < 3) return { status: 'PENDIENTE', priority: 'MEDIA' };
 
     const dueY = parseInt(parts[0], 10);
     const dueM = parseInt(parts[1], 10) - 1;
@@ -205,7 +210,11 @@ export default function App() {
       return { status: 'PROXIMO_VENCER', priority: 'ALTA' };
     }
 
-    return { status: 'PENDIENTE', priority: originalPriority };
+    if (diffDays >= 4 && diffDays <= 15) {
+      return { status: 'PENDIENTE', priority: 'MEDIA' };
+    }
+
+    return { status: 'PENDIENTE', priority: 'BAJA' };
   };
 
   const recalculateDataMetrics = (currentBudget, expensesList) => {
@@ -213,7 +222,7 @@ export default function App() {
     const rawExpenses = Array.isArray(expensesList) ? expensesList : [];
 
     const expenses = rawExpenses.map(exp => {
-      const { status: compStatus, priority: compPriority } = computeStatusAndPriority(exp.due_date, exp.status === 'PAGADO', exp.priority);
+      const { status: compStatus, priority: compPriority } = computeStatusAndPriority(exp.due_date, exp.status === 'PAGADO');
       return {
         ...exp,
         dynamic_status: compStatus,
@@ -313,7 +322,7 @@ export default function App() {
       titleText = `${titleText} (Cuota ${formData.installment_current}/${formData.installment_total})`;
     }
 
-    const { status: initStatus, priority: initPriority } = computeStatusAndPriority(formData.due_date, false, formData.priority);
+    const { status: initStatus, priority: initPriority } = computeStatusAndPriority(formData.due_date, false);
 
     const newExpItem = {
       id: Date.now(),
@@ -324,7 +333,7 @@ export default function App() {
       expense_type: isCuota ? 'EVENTUAL' : (formData.expense_type === 'EVENTUAL' ? 'EVENTUAL' : 'FIJO'),
       estimated_amount: Number(formData.estimated_amount),
       due_date: formData.due_date,
-      priority: formData.priority || 'MEDIA',
+      priority: initPriority,
       status: 'PENDIENTE',
       dynamic_status: initStatus,
       effective_priority: initPriority,
@@ -336,7 +345,7 @@ export default function App() {
 
     let updatedList = [newExpItem, ...safeExpenses];
 
-    // Lógica automatizada para Cuota N+1 con o sin interés porcentual
+    // Lógica para Cuota N+1 (Con / Sin Interés)
     if (isCuota && Number(formData.installment_current) < Number(formData.installment_total)) {
       const nextNum = Number(formData.installment_current) + 1;
       const totalNum = Number(formData.installment_total);
@@ -356,13 +365,12 @@ export default function App() {
       const nextDueDateStr = `${nextYear}-${String(nextMonth).padStart(2, '0')}-${dDay}`;
       const cleanBaseConcept = formData.title.trim().replace(/\s*\(Cuota \d+\/\d+\)/, '');
 
-      // Aplicar recargo de interés si corresponde
       let nextAmount = Number(formData.estimated_amount);
       if (formData.has_interest === 'YES' && Number(formData.interest_rate) > 0) {
         nextAmount = Math.round(nextAmount * (1 + (Number(formData.interest_rate) / 100)));
       }
 
-      const { status: nextInitStatus, priority: nextInitPriority } = computeStatusAndPriority(nextDueDateStr, false, formData.priority);
+      const { status: nextInitStatus, priority: nextInitPriority } = computeStatusAndPriority(nextDueDateStr, false);
 
       const nextCuotaItem = {
         id: Date.now() + 1,
@@ -373,7 +381,7 @@ export default function App() {
         expense_type: 'EVENTUAL',
         estimated_amount: nextAmount,
         due_date: nextDueDateStr,
-        priority: formData.priority || 'MEDIA',
+        priority: nextInitPriority,
         status: 'PENDIENTE',
         dynamic_status: nextInitStatus,
         effective_priority: nextInitPriority,
@@ -381,11 +389,48 @@ export default function App() {
         installment_current: nextNum,
         installment_total: totalNum,
         notes: formData.has_interest === 'YES' 
-          ? `Próxima cuota con ${formData.interest_rate}% de recargo de interés incluido`
+          ? `Próxima cuota con ${formData.interest_rate}% de recargo de interés`
           : `Generado automáticamente para el próximo mes`
       };
 
       updatedList = [nextCuotaItem, ...updatedList];
+    }
+
+    // Lógica para Gasto Fijo Recurrente ("Recordar para el próximo mes")
+    if (!isCuota && formData.expense_type === 'FIJO' && formData.remember_next_month === 'YES') {
+      const dueParts = formData.due_date.split('-');
+      const dYear = parseInt(dueParts[0], 10);
+      const dMonth = parseInt(dueParts[1], 10);
+      const dDay = dueParts[2];
+
+      let nextYear = dYear;
+      let nextMonth = dMonth + 1;
+      if (nextMonth > 12) {
+        nextMonth = 1;
+        nextYear += 1;
+      }
+
+      const nextDueDateStr = `${nextYear}-${String(nextMonth).padStart(2, '0')}-${dDay}`;
+      const { status: nextFixedStatus, priority: nextFixedPriority } = computeStatusAndPriority(nextDueDateStr, false);
+
+      const nextFixedItem = {
+        id: Date.now() + 2,
+        title: `${formData.title.trim()} (Próximo Mes)`,
+        category_id: Number(formData.category_id),
+        category_name: catObj.name,
+        category_icon: catObj.icon || 'wallet',
+        expense_type: 'FIJO',
+        estimated_amount: Number(formData.estimated_amount),
+        due_date: nextDueDateStr,
+        priority: nextFixedPriority,
+        status: 'PENDIENTE',
+        dynamic_status: nextFixedStatus,
+        effective_priority: nextFixedPriority,
+        actual_paid_amount: null,
+        notes: 'Recordatorio automático de gasto fijo para el mes próximo (monto editable)'
+      };
+
+      updatedList = [nextFixedItem, ...updatedList];
     }
 
     const { processedExpenses, ...updatedMetrics } = recalculateDataMetrics(safeMetrics.budget, updatedList);
@@ -409,12 +454,12 @@ export default function App() {
       expense_type: 'FIJO',
       estimated_amount: '',
       due_date: todayStr,
-      priority: 'MEDIA',
       notes: '',
       installment_current: 1,
       installment_total: 3,
       has_interest: 'NO',
-      interest_rate: '5'
+      interest_rate: '5',
+      remember_next_month: 'YES'
     });
   };
 
@@ -544,30 +589,26 @@ export default function App() {
     (_, i) => i + 1
   );
 
-  // 1. Pantalla de Bienvenida / Inicio (Hero Welcome Screen)
+  // 1. Pantalla de Bienvenida Simplificada
   if (viewMode === 'welcome') {
     return (
       <div className="container" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '85vh' }}>
-        <div className="modal-content" style={{ maxWidth: '560px', padding: '44px 36px', textAlign: 'center', boxShadow: 'var(--shadow-lg)' }}>
-          <div className="brand-icon" style={{ width: '64px', height: '64px', margin: '0 auto 20px', borderRadius: '18px' }}>
-            <Wallet size={36} />
+        <div className="modal-content" style={{ maxWidth: '500px', padding: '40px 32px', textAlign: 'center', boxShadow: 'var(--shadow-lg)' }}>
+          <div className="brand-icon" style={{ width: '60px', height: '60px', margin: '0 auto 16px', borderRadius: '16px' }}>
+            <Wallet size={32} />
           </div>
           
-          <h1 style={{ fontSize: '2rem', fontWeight: '800', color: 'var(--text-primary)', marginBottom: '8px' }}>
+          <h1 style={{ fontSize: '2.1rem', fontWeight: '800', color: 'var(--text-primary)', marginBottom: '4px' }}>
             FinFix
           </h1>
-          <p style={{ fontSize: '1rem', color: 'var(--text-secondary)', marginBottom: '24px', lineHeight: '1.6' }}>
-            Sistema de Control de Obligaciones Fijas, Servicios y Compras en Cuotas.
+          <p style={{ fontSize: '0.95rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '20px' }}>
+            Sistema de Control de Gastos Mensuales
           </p>
 
-          <div style={{ background: 'var(--bg-subtle)', padding: '16px', borderRadius: '12px', marginBottom: '32px', textAlign: 'left', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            <div style={{ fontSize: '0.85rem', fontWeight: '700', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <ShieldCheck size={16} color="var(--accent-sage)" /> Estado del Sistema
-            </div>
-            <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-              • Período Corriente: <strong>{data?.currentPeriodName || 'Agosto 2026'}</strong><br/>
-              • Obligaciones Registradas: <strong>{safeExpenses.length}</strong>
-            </div>
+          <div style={{ background: 'var(--bg-subtle)', padding: '12px 18px', borderRadius: '999px', display: 'inline-block', marginBottom: '28px', border: '1px solid var(--border-color)' }}>
+            <span style={{ fontSize: '0.85rem', fontWeight: '700', color: 'var(--accent-navy)' }}>
+              Período: {data?.currentPeriodName || 'Agosto 2026'}
+            </span>
           </div>
 
           <button 
@@ -596,7 +637,7 @@ export default function App() {
               FinFix 
               <span className="period-pill">{data?.currentPeriodName || 'Agosto 2026'}</span>
             </h1>
-            <p>Control de Obligaciones Fijas y Gastos del Mes</p>
+            <p>Sistema de Control de Gastos Mensuales</p>
           </div>
         </div>
 
@@ -672,7 +713,7 @@ export default function App() {
 
         <div className="breakdown-box">
           <h4>
-            <span>Eventuales / Cuotas</span>
+            <span>Eventuales</span>
             <span style={{ color: '#6B21A8' }}>${(safeMetrics.totalEventualCommitted || 0).toLocaleString('es-AR')}</span>
           </h4>
           <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Compras en cuotas, tarjetas o entretenimientos.</p>
@@ -704,7 +745,7 @@ export default function App() {
         </div>
       </div>
 
-      {/* Expenses List (Limpio sin puntos separadores) */}
+      {/* Expenses List (Limpia sin puntos separadores) */}
       <div className="expenses-list">
         {loading ? (
           <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-secondary)' }}>
@@ -727,16 +768,10 @@ export default function App() {
                   </div>
                   <div className="expense-details">
                     <h3>{exp.title}</h3>
-                    <div className="expense-meta" style={{ gap: '14px' }}>
+                    <div className="expense-meta" style={{ gap: '16px' }}>
                       <span>Categoría: {exp.category_name || 'General'}</span>
                       <span>{formatDateLabel(exp.due_date)}</span>
-                      <span style={{ 
-                        fontWeight: '700', 
-                        color: effectivePrio === 'ALTA' ? 'var(--accent-terracotta)' : 'var(--text-secondary)',
-                        background: effectivePrio === 'ALTA' ? 'rgba(224, 109, 83, 0.1)' : 'transparent',
-                        padding: '2px 6px',
-                        borderRadius: '4px'
-                      }}>
+                      <span className={`prio-pill prio-${effectivePrio}`}>
                         Prioridad: {effectivePrio}
                       </span>
                       {exp.notes && (
@@ -848,7 +883,21 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Selector dinámico de cuotas + Opciones de Interés si es categoría Cuota */}
+              {/* Lógica de Gasto Fijo Recurrente: Recordar próximo mes */}
+              {safeCategories.find(c => String(c.id) === String(formData.category_id))?.name !== 'Cuota' && formData.expense_type === 'FIJO' && (
+                <div className="form-group" style={{ background: 'var(--bg-subtle)', padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                    <input 
+                      type="checkbox"
+                      checked={formData.remember_next_month === 'YES'}
+                      onChange={(e) => setFormData({ ...formData, remember_next_month: e.target.checked ? 'YES' : 'NO' })}
+                    />
+                    <span>Recordar este gasto fijo automáticamente para el próximo mes (monto editable)</span>
+                  </label>
+                </div>
+              )}
+
+              {/* Selector dinámico de cuotas (Cuota Actual <= Total Cuotas) + Interés mensual */}
               {safeCategories.find(c => String(c.id) === String(formData.category_id))?.name === 'Cuota' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', background: 'var(--bg-subtle)', padding: '14px', borderRadius: '10px', border: '1px solid var(--border-color)' }}>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
@@ -886,7 +935,6 @@ export default function App() {
                     </div>
                   </div>
 
-                  {/* Configuración de Recargo / Interés */}
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', paddingTop: '8px', borderTop: '1px solid var(--border-color)' }}>
                     <div className="form-group">
                       <label>Interés en la Cuota</label>
@@ -895,14 +943,14 @@ export default function App() {
                         value={formData.has_interest}
                         onChange={(e) => setFormData({ ...formData, has_interest: e.target.value })}
                       >
-                        <option value="NO">Sin Interés (Taza 0%)</option>
+                        <option value="NO">Sin Interés (Tasa 0%)</option>
                         <option value="YES">Con Interés Mensual</option>
                       </select>
                     </div>
 
                     {formData.has_interest === 'YES' && (
                       <div className="form-group">
-                        <label>% Recargo / Interés Mensual</label>
+                        <label>% Recargo Interés Mensual</label>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                           <input 
                             type="number" 
@@ -950,9 +998,6 @@ export default function App() {
                     onChange={(e) => setFormData({ ...formData, due_date: e.target.value })}
                     required
                   />
-                  <span style={{ fontSize: '0.725rem', color: 'var(--text-secondary)' }}>
-                    Rango permitido: 1 año atrás hasta 1 año adelante
-                  </span>
                 </div>
               </div>
 

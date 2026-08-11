@@ -312,25 +312,6 @@ body {
   flex: 1;
 }
 
-.type-pill {
-  font-size: 0.7rem;
-  font-weight: 700;
-  padding: 2px 8px;
-  border-radius: 4px;
-  text-transform: uppercase;
-  margin-left: 8px;
-}
-
-.type-FIJO {
-  background: #E0E7FF;
-  color: #3730A3;
-}
-
-.type-EVENTUAL {
-  background: #F3E8FF;
-  color: #6B21A8;
-}
-
 .category-icon-badge {
   width: 44px;
   height: 44px;
@@ -356,9 +337,36 @@ body {
   font-size: 0.8rem;
   color: var(--text-secondary);
   display: flex;
-  gap: 10px;
+  gap: 14px;
   align-items: center;
   flex-wrap: wrap;
+}
+
+/* Priority Badges - Colores suaves y nítidos */
+.prio-pill {
+  font-size: 0.725rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 4px;
+  letter-spacing: 0.02em;
+}
+
+.prio-ALTA {
+  background: #FEE2E2;
+  color: #B91C1C;
+  border: 1px solid #FCA5A5;
+}
+
+.prio-MEDIA {
+  background: #FEF3C7;
+  color: #B45309;
+  border: 1px solid #FDE68A;
+}
+
+.prio-BAJA {
+  background: #F1F5F9;
+  color: #475569;
+  border: 1px solid #E2E8F0;
 }
 
 /* Status Badges */
