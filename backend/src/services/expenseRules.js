@@ -1,5 +1,5 @@
 /**
- * Módulo de Reglas de Negocio de FinFix (Versión con Cálculo de Interés Total en Cuotas y Período Filtrado)
+ * Módulo de Reglas de Negocio de FinFix
  */
 
 export function isDuplicateExpenseTitle(existingExpenses, newTitle, currentExpenseId = null) {
@@ -48,19 +48,11 @@ export function processPaymentData(expense, paidAmount, paymentDate = new Date()
   };
 }
 
-/**
- * Formateador de dinero con punto para miles (5.000, 50.000, 150.000)
- */
 export function formatMoneyNumber(val) {
   const num = Math.round(Number(val) || 0);
   return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
 }
 
-/**
- * Cálculo de Cuotas con Interés sobre el Precio Total:
- * Precio Final = Precio Base * (1 + %Interes / 100)
- * Cuota Valor = Precio Final / Cantidad Cuotas
- */
 export function calculateInstallmentDetails(basePrice, totalInstallments, hasInterest, interestPercentage) {
   const price = Number(basePrice) || 0;
   const count = Math.max(1, Number(totalInstallments) || 1);
@@ -77,22 +69,16 @@ export function calculateInstallmentDetails(basePrice, totalInstallments, hasInt
   };
 }
 
-/**
- * Regla 3: Calcula métricas filtrando únicamente el período activo (mes corriente o vencidos anteriores).
- * Los gastos del próximo mes NO computan en el comprometido ni saldo libre del mes actual.
- */
 export function calculateCategorizedMetrics(totalBudget, expenses, currentYearMonthStr = null) {
   const budget = Number(totalBudget) || 0;
   const safeExpenses = Array.isArray(expenses) ? expenses : [];
   
-  // Filtrar para métricas del mes corriente
+  // Filtrar estrictamente: solo computan los del mes corriente o vencidos pasados
   const activeExpenses = safeExpenses.filter(e => {
-    if (!currentYearMonthStr) return true;
-    if (e.dynamic_status === 'VENCIDO') return true; // Vencidos cuentan en el mes actual hasta liquidar
-    
-    if (e.due_date) {
-      const expYM = e.due_date.substring(0, 7); // "YYYY-MM"
-      return expYM <= currentYearMonthStr;
+    if (e.dynamic_status === 'VENCIDO') return true;
+    if (e.due_date && currentYearMonthStr) {
+      const expYM = e.due_date.substring(0, 7);
+      return expYM === currentYearMonthStr;
     }
     return true;
   });

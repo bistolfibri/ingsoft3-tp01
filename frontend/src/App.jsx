@@ -157,19 +157,22 @@ export default function App() {
   const todayStr = `${yearPad}-${monthPad}-${dayPad}`;
   const currentPeriodYM = `${yearPad}-${monthPad}`; // "2026-08"
 
-  // Selector de fecha limpio sin desplegables antiguos (Día, Mes, Año estricto 2025, 2026, 2027)
-  const [dateParts, setDateParts] = useState({
-    day: dayPad,
-    month: monthPad,
-    year: String(yearPad)
-  });
+  // Rango para Vencimientos: 1 mes antes (Julio 2026) hasta 2 meses después (Octubre 2026)
+  const allowedDueDatePeriods = [
+    { ym: '2026-07', label: 'Julio 2026', year: '2026', month: '07' },
+    { ym: '2026-08', label: 'Agosto 2026', year: '2026', month: '08' },
+    { ym: '2026-09', label: 'Septiembre 2026', year: '2026', month: '09' },
+    { ym: '2026-10', label: 'Octubre 2026', year: '2026', month: '10' }
+  ];
 
-  // Selector de fecha para el modal de pago
-  const [payDateParts, setPayDateParts] = useState({
-    day: dayPad,
-    month: monthPad,
-    year: String(yearPad)
-  });
+  // Estado para selector de fecha de vencimiento
+  const [duePeriodIndex, setDuePeriodIndex] = useState(1); // Agosto 2026 por defecto
+  const [dueDayPart, setDueDayPart] = useState(dayPad);
+
+  // Estado para selector de fecha de pago: Desde el 1 del mes hasta el día de HOY
+  const currentDayNum = todayObj.getDate();
+  const allowedPayDays = Array.from({ length: currentDayNum }, (_, i) => String(i + 1).padStart(2, '0'));
+  const [payDayPart, setPayDayPart] = useState(dayPad);
 
   const [formData, setFormData] = useState({
     title: '',
@@ -243,14 +246,14 @@ export default function App() {
       };
     });
 
-    // Filtrar estrictamente para Agosto 2026: los de meses futuros NO computan en comprometido ni saldo libre
+    // Filtrar estrictamente para Agosto 2026: los de meses futuros (Septiembre, Octubre) NO computan en comprometido ni saldo libre
     const currentPeriodExpenses = expenses.filter(e => {
       if (e.dynamic_status === 'VENCIDO') return true;
       if (e.due_date) {
         const expYM = e.due_date.substring(0, 7);
-        return expYM <= currentPeriodYM;
+        return expYM === currentPeriodYM;
       }
-      return true;
+      return false;
     });
 
     const fixed = currentPeriodExpenses.filter(e => e.expense_type === 'FIJO');
@@ -327,17 +330,18 @@ export default function App() {
   const safeCategories = DEFAULT_CATEGORIES;
   const safeMetrics = data?.metrics || DEFAULT_DATA.metrics;
 
-  // Filtrado visual: En el mes corriente se muestran solo los correspondientes al período actual (Agosto 2026) o vencidos
+  // Filtrado visual estricto: En el mes de Agosto 2026 NO figuran gastos de Septiembre ni meses futuros
   const currentViewableExpenses = safeExpenses.filter(e => {
     if (e.dynamic_status === 'VENCIDO') return true;
     if (e.due_date) {
       const expYM = e.due_date.substring(0, 7);
-      return expYM <= currentPeriodYM;
+      return expYM === currentPeriodYM;
     }
-    return true;
+    return false;
   });
 
-  const selectedDueDate = `${dateParts.year}-${dateParts.month}-${dateParts.day}`;
+  const selectedPeriodObj = allowedDueDatePeriods[duePeriodIndex] || allowedDueDatePeriods[1];
+  const selectedDueDate = `${selectedPeriodObj.year}-${selectedPeriodObj.month}-${dueDayPart}`;
 
   // Cálculo de Cuotas con Interés sobre el Total:
   const isCuotaCategory = safeCategories.find(c => String(c.id) === String(formData.category_id))?.name === 'Cuota';
@@ -401,7 +405,7 @@ export default function App() {
 
     let updatedList = [newExpItem, ...safeExpenses];
 
-    // Generar cuota N+1 para el mes que viene (NO aparece en el resumen de este mes)
+    // Generar cuota N+1 para el mes que viene (NO aparece en la lista de Agosto)
     if (isCuotaCategory && Number(formData.installment_current) < Number(formData.installment_total)) {
       const nextNum = Number(formData.installment_current) + 1;
       const totalNum = Number(formData.installment_total);
@@ -445,7 +449,7 @@ export default function App() {
       updatedList = [nextCuotaItem, ...updatedList];
     }
 
-    // Gasto Fijo Recurrente para el próximo mes (NO aparece en el resumen de este mes)
+    // Gasto Fijo Recurrente para el próximo mes (Septiembre) — NO aparece en la lista de Agosto
     if (!isCuotaCategory && formData.expense_type === 'FIJO' && formData.remember_next_month === 'YES') {
       const dueParts = selectedDueDate.split('-');
       const dYear = parseInt(dueParts[0], 10);
@@ -464,7 +468,7 @@ export default function App() {
 
       const nextFixedItem = {
         id: Date.now() + 2,
-        title: `${formData.title.trim()} (Próximo Mes)`,
+        title: `${formData.title.trim()} (Septiembre)`,
         category_id: Number(formData.category_id),
         category_name: catObj.name,
         category_icon: catObj.icon || 'wallet',
@@ -476,7 +480,7 @@ export default function App() {
         dynamic_status: nextFixedStatus,
         effective_priority: nextFixedPriority,
         actual_paid_amount: null,
-        notes: 'Recordatorio automático para el mes próximo (monto editable)'
+        notes: 'Recordatorio automático para Septiembre (monto editable)'
       };
 
       updatedList = [nextFixedItem, ...updatedList];
@@ -518,7 +522,7 @@ export default function App() {
     if (!selectedExpense) return;
 
     const paidAmt = Number(payData.actual_paid_amount) || selectedExpense.estimated_amount;
-    const selectedPayDate = `${payDateParts.year}-${payDateParts.month}-${payDateParts.day}`;
+    const selectedPayDate = `${yearPad}-${monthPad}-${payDayPart}`;
 
     const updatedRaw = safeExpenses.map(exp => {
       if (exp.id === selectedExpense.id) {
@@ -795,7 +799,7 @@ export default function App() {
         </div>
       </div>
 
-      {/* Expenses List (Limpia sin puntos separadores, con prioridad solo en texto) */}
+      {/* Expenses List */}
       <div className="expenses-list">
         {loading ? (
           <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-secondary)' }}>
@@ -803,7 +807,7 @@ export default function App() {
           </div>
         ) : filteredExpenses.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-secondary)', background: 'var(--bg-surface)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
-            No hay obligaciones en este filtro para el período corriente.
+            No hay obligaciones en este filtro para el período corriente (Agosto 2026).
           </div>
         ) : (
           filteredExpenses.map((exp) => {
@@ -858,6 +862,7 @@ export default function App() {
                           payment_date: todayStr,
                           note: 'Pago registrado'
                         });
+                        setPayDayPart(dayPad);
                         setShowPayModal(true);
                       }}
                     >
@@ -945,7 +950,7 @@ export default function App() {
                       checked={formData.remember_next_month === 'YES'}
                       onChange={(e) => setFormData({ ...formData, remember_next_month: e.target.checked ? 'YES' : 'NO' })}
                     />
-                    <span>Recordar este gasto fijo automáticamente para el próximo mes (monto editable)</span>
+                    <span>Recordar este gasto fijo automáticamente para el próximo mes (no figurará en Agosto)</span>
                   </label>
                 </div>
               )}
@@ -1060,45 +1065,33 @@ export default function App() {
                   </div>
                 )}
 
-                {/* Custom Date Selector limpio con 3 selects: Día, Mes y Años estricto (2025, 2026, 2027) */}
+                {/* Fecha de Vencimiento: Rango acotado desde 1 mes antes (Julio 2026) hasta 2 meses después (Octubre 2026) */}
                 <div className="form-group" style={{ gridColumn: isCuotaCategory ? 'span 2' : 'span 1' }}>
                   <label>Fecha de Vencimiento *</label>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr 1fr', gap: '6px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1.8fr 1fr', gap: '6px' }}>
                     <select
                       className="form-input"
-                      value={dateParts.day}
-                      onChange={(e) => setDateParts({ ...dateParts, day: e.target.value })}
+                      value={duePeriodIndex}
+                      onChange={(e) => setDuePeriodIndex(Number(e.target.value))}
+                    >
+                      {allowedDueDatePeriods.map((p, idx) => (
+                        <option key={p.ym} value={idx}>{p.label}</option>
+                      ))}
+                    </select>
+
+                    <select
+                      className="form-input"
+                      value={dueDayPart}
+                      onChange={(e) => setDueDayPart(e.target.value)}
                     >
                       {Array.from({ length: 31 }, (_, i) => String(i + 1).padStart(2, '0')).map(d => (
-                        <option key={d} value={d}>{d}</option>
+                        <option key={d} value={d}>Día {d}</option>
                       ))}
-                    </select>
-
-                    <select
-                      className="form-input"
-                      value={dateParts.month}
-                      onChange={(e) => setDateParts({ ...dateParts, month: e.target.value })}
-                    >
-                      {[
-                        { val: '01', name: 'Ene' }, { val: '02', name: 'Feb' }, { val: '03', name: 'Mar' },
-                        { val: '04', name: 'Abr' }, { val: '05', name: 'May' }, { val: '06', name: 'Jun' },
-                        { val: '07', name: 'Jul' }, { val: '08', name: 'Ago' }, { val: '09', name: 'Sep' },
-                        { val: '10', name: 'Oct' }, { val: '11', name: 'Nov' }, { val: '12', name: 'Dic' }
-                      ].map(m => (
-                        <option key={m.val} value={m.val}>{m.name}</option>
-                      ))}
-                    </select>
-
-                    <select
-                      className="form-input"
-                      value={dateParts.year}
-                      onChange={(e) => setDateParts({ ...dateParts, year: e.target.value })}
-                    >
-                      <option value="2025">2025</option>
-                      <option value="2026">2026</option>
-                      <option value="2027">2027</option>
                     </select>
                   </div>
+                  <span style={{ fontSize: '0.725rem', color: 'var(--text-secondary)' }}>
+                    Rango: 1 mes antes (Jul 2026) hasta 2 meses después (Oct 2026)
+                  </span>
                 </div>
               </div>
 
@@ -1137,7 +1130,7 @@ export default function App() {
         </div>
       )}
 
-      {/* Modal Registrar Pago con Selector Limpio de Fecha (Día, Mes, Año estricto 2025-2027) */}
+      {/* Modal Registrar Pago: Rango estricto desde el 1 de Agosto de 2026 hasta HOY (Día 11 de Agosto de 2026) */}
       {showPayModal && selectedExpense && (
         <div className="modal-overlay">
           <div className="modal-content">
@@ -1174,42 +1167,23 @@ export default function App() {
 
               <div className="form-group">
                 <label>Fecha Efectiva de Pago *</label>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr 1fr', gap: '6px' }}>
-                  <select
-                    className="form-input"
-                    value={payDateParts.day}
-                    onChange={(e) => setPayDateParts({ ...payDateParts, day: e.target.value })}
-                  >
-                    {Array.from({ length: 31 }, (_, i) => String(i + 1).padStart(2, '0')).map(d => (
-                      <option key={d} value={d}>{d}</option>
-                    ))}
+                <div style={{ display: 'grid', gridTemplateColumns: '1.8fr 1fr', gap: '6px' }}>
+                  <select className="form-input" disabled>
+                    <option>Agosto 2026</option>
                   </select>
-
                   <select
                     className="form-input"
-                    value={payDateParts.month}
-                    onChange={(e) => setPayDateParts({ ...payDateParts, month: e.target.value })}
+                    value={payDayPart}
+                    onChange={(e) => setPayDayPart(e.target.value)}
                   >
-                    {[
-                      { val: '01', name: 'Ene' }, { val: '02', name: 'Feb' }, { val: '03', name: 'Mar' },
-                      { val: '04', name: 'Abr' }, { val: '05', name: 'May' }, { val: '06', name: 'Jun' },
-                      { val: '07', name: 'Jul' }, { val: '08', name: 'Ago' }, { val: '09', name: 'Sep' },
-                      { val: '10', name: 'Oct' }, { val: '11', name: 'Nov' }, { val: '12', name: 'Dic' }
-                    ].map(m => (
-                      <option key={m.val} value={m.val}>{m.name}</option>
+                    {allowedPayDays.map(d => (
+                      <option key={d} value={d}>Día {d}</option>
                     ))}
-                  </select>
-
-                  <select
-                    className="form-input"
-                    value={payDateParts.year}
-                    onChange={(e) => setPayDateParts({ ...payDateParts, year: e.target.value })}
-                  >
-                    <option value="2025">2025</option>
-                    <option value="2026">2026</option>
-                    <option value="2027">2027</option>
                   </select>
                 </div>
+                <span style={{ fontSize: '0.725rem', color: 'var(--text-secondary)' }}>
+                  Permitido: Desde el 01/08/2026 hasta el día de HOY ({todayStr})
+                </span>
               </div>
 
               <div className="form-group">
