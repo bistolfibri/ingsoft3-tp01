@@ -116,7 +116,6 @@ const DEFAULT_DATA = {
       due_date: '2025-05-11',
       priority: 'ALTA',
       status: 'PENDIENTE',
-      dynamic_status: 'VENCIDO',
       actual_paid_amount: null,
       notes: 'Deuda de prueba mayo 2025'
     },
@@ -165,11 +164,10 @@ export default function App() {
     { ym: '2026-10', label: 'Octubre 2026', year: '2026', month: '10' }
   ];
 
-  // Estado para selector de fecha de vencimiento
   const [duePeriodIndex, setDuePeriodIndex] = useState(1); // Agosto 2026 por defecto
   const [dueDayPart, setDueDayPart] = useState(dayPad);
 
-  // Estado para selector de fecha de pago: Desde el 1 del mes hasta el día de HOY
+  // Selector de fecha para el modal de pago (desde el 1 de Agosto hasta HOY Día 11)
   const currentDayNum = todayObj.getDate();
   const allowedPayDays = Array.from({ length: currentDayNum }, (_, i) => String(i + 1).padStart(2, '0'));
   const [payDayPart, setPayDayPart] = useState(dayPad);
@@ -246,7 +244,6 @@ export default function App() {
       };
     });
 
-    // Filtrar estrictamente para Agosto 2026: los de meses futuros (Septiembre, Octubre) NO computan en comprometido ni saldo libre
     const currentPeriodExpenses = expenses.filter(e => {
       if (e.dynamic_status === 'VENCIDO') return true;
       if (e.due_date) {
@@ -330,7 +327,6 @@ export default function App() {
   const safeCategories = DEFAULT_CATEGORIES;
   const safeMetrics = data?.metrics || DEFAULT_DATA.metrics;
 
-  // Filtrado visual estricto: En el mes de Agosto 2026 NO figuran gastos de Septiembre ni meses futuros
   const currentViewableExpenses = safeExpenses.filter(e => {
     if (e.dynamic_status === 'VENCIDO') return true;
     if (e.due_date) {
@@ -405,7 +401,6 @@ export default function App() {
 
     let updatedList = [newExpItem, ...safeExpenses];
 
-    // Generar cuota N+1 para el mes que viene (NO aparece en la lista de Agosto)
     if (isCuotaCategory && Number(formData.installment_current) < Number(formData.installment_total)) {
       const nextNum = Number(formData.installment_current) + 1;
       const totalNum = Number(formData.installment_total);
@@ -449,7 +444,6 @@ export default function App() {
       updatedList = [nextCuotaItem, ...updatedList];
     }
 
-    // Gasto Fijo Recurrente para el próximo mes (Septiembre) — NO aparece en la lista de Agosto
     if (!isCuotaCategory && formData.expense_type === 'FIJO' && formData.remember_next_month === 'YES') {
       const dueParts = selectedDueDate.split('-');
       const dYear = parseInt(dueParts[0], 10);
@@ -516,13 +510,19 @@ export default function App() {
     });
   };
 
-  // Al pagar con recargo por mora, la diferencia incrementa el total pagado/comprometido y RESTA del saldo libre
+  // Comparación inteligente de fecha efectiva de pago vs fecha de vencimiento
+  const selectedPayDateStr = `${yearPad}-${monthPad}-${payDayPart}`;
+  const selectedExpenseDueDateStr = selectedExpense?.due_date ? selectedExpense.due_date.substring(0, 10) : selectedPayDateStr;
+  const isPaidOnTime = selectedPayDateStr <= selectedExpenseDueDateStr;
+
   const handlePaySubmit = async (e) => {
     e.preventDefault();
     if (!selectedExpense) return;
 
-    const paidAmt = Number(payData.actual_paid_amount) || selectedExpense.estimated_amount;
-    const selectedPayDate = `${yearPad}-${monthPad}-${payDayPart}`;
+    // Si pagó a término (payment_date <= due_date), se abona el monto exacto sin recargo
+    const paidAmt = isPaidOnTime 
+      ? selectedExpense.estimated_amount 
+      : (Number(payData.actual_paid_amount) || selectedExpense.estimated_amount);
 
     const updatedRaw = safeExpenses.map(exp => {
       if (exp.id === selectedExpense.id) {
@@ -531,7 +531,7 @@ export default function App() {
           status: 'PAGADO',
           dynamic_status: 'PAGADO',
           actual_paid_amount: paidAmt,
-          paid_at: selectedPayDate
+          paid_at: selectedPayDateStr
         };
       }
       return exp;
@@ -546,9 +546,9 @@ export default function App() {
     }));
 
     try {
-      const res = await payExpense(selectedExpense.id, { ...payData, payment_date: selectedPayDate });
+      const res = await payExpense(selectedExpense.id, { ...payData, actual_paid_amount: paidAmt, payment_date: selectedPayDateStr });
       if (res && res.surchargeAmount > 0) {
-        alert(`ℹ️ Pago registrado con recargo por mora: +$${formatMoney(res.surchargeAmount)}. Este recargo se descontó directamente de tu saldo libre.`);
+        alert(`ℹ️ Pago registrado con recargo por mora: +$${formatMoney(res.surchargeAmount)}. Este recargo se descontó de tu saldo libre.`);
       }
     } catch (err) {
       console.warn('Pago actualizado en memoria local');
@@ -1039,7 +1039,6 @@ export default function App() {
                     </div>
                   )}
 
-                  {/* Resumen dinámico transparente del valor de cada cuota */}
                   {basePriceNum > 0 && (
                     <div style={{ background: '#FFFFFF', padding: '10px 12px', borderRadius: '6px', border: '1px solid var(--border-color)', fontSize: '0.8rem', color: 'var(--text-primary)' }}>
                       <div>Precio Final con Interés: <strong>${formatMoney(totalPriceCalculated)}</strong></div>
@@ -1065,7 +1064,6 @@ export default function App() {
                   </div>
                 )}
 
-                {/* Fecha de Vencimiento: Rango acotado desde 1 mes antes (Julio 2026) hasta 2 meses después (Octubre 2026) */}
                 <div className="form-group" style={{ gridColumn: isCuotaCategory ? 'span 2' : 'span 1' }}>
                   <label>Fecha de Vencimiento *</label>
                   <div style={{ display: 'grid', gridTemplateColumns: '1.8fr 1fr', gap: '6px' }}>
@@ -1130,7 +1128,7 @@ export default function App() {
         </div>
       )}
 
-      {/* Modal Registrar Pago: Rango estricto desde el 1 de Agosto de 2026 hasta HOY (Día 11 de Agosto de 2026) */}
+      {/* Modal Registrar Pago con Regla Inteligente de Pago A Término vs Con Mora */}
       {showPayModal && selectedExpense && (
         <div className="modal-overlay">
           <div className="modal-content">
@@ -1139,32 +1137,6 @@ export default function App() {
               <button className="btn-close" onClick={() => setShowPayModal(false)}><X size={20} /></button>
             </div>
             <form onSubmit={handlePaySubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              <div className="form-group">
-                <label>Monto a Abonar ($)</label>
-                <input 
-                  type="number" 
-                  className="form-input"
-                  value={payData.actual_paid_amount}
-                  onChange={(e) => setPayData({ ...payData, actual_paid_amount: e.target.value })}
-                  disabled={selectedExpense.dynamic_status !== 'VENCIDO'}
-                  required
-                />
-                {selectedExpense.dynamic_status !== 'VENCIDO' ? (
-                  <span className="validation-hint" style={{ color: 'var(--text-secondary)' }}>
-                    ℹ️ Al estar al día, se abona exactamente el monto fijado (${formatMoney(selectedExpense.estimated_amount)}).
-                  </span>
-                ) : Number(payData.actual_paid_amount) > selectedExpense.estimated_amount ? (
-                  <span className="validation-hint" style={{ color: 'var(--accent-amber)' }}>
-                    ⚠️ Incluye recargo por pago fuera de término (+$
-                    {formatMoney(Number(payData.actual_paid_amount) - selectedExpense.estimated_amount)}). Este recargo reducirá tu saldo libre disponible.
-                  </span>
-                ) : Number(payData.actual_paid_amount) < selectedExpense.estimated_amount ? (
-                  <span className="validation-hint">
-                    ❌ No se permite abonar un monto menor al total adeudado (${formatMoney(selectedExpense.estimated_amount)}).
-                  </span>
-                ) : null}
-              </div>
-
               <div className="form-group">
                 <label>Fecha Efectiva de Pago *</label>
                 <div style={{ display: 'grid', gridTemplateColumns: '1.8fr 1fr', gap: '6px' }}>
@@ -1187,6 +1159,31 @@ export default function App() {
               </div>
 
               <div className="form-group">
+                <label>Monto a Abonar ($)</label>
+                <input 
+                  type="number" 
+                  className="form-input"
+                  value={isPaidOnTime ? selectedExpense.estimated_amount : payData.actual_paid_amount}
+                  onChange={(e) => setPayData({ ...payData, actual_paid_amount: e.target.value })}
+                  disabled={isPaidOnTime}
+                  required
+                />
+                {isPaidOnTime ? (
+                  <span className="validation-hint" style={{ color: 'var(--accent-sage)', fontWeight: '600' }}>
+                    ℹ️ El pago fue realizado el {payDayPart}/08/2026 (a término en o antes del vencimiento). Se abona la tarifa fijada (${formatMoney(selectedExpense.estimated_amount)}) sin recargo.
+                  </span>
+                ) : Number(payData.actual_paid_amount) > selectedExpense.estimated_amount ? (
+                  <span className="validation-hint" style={{ color: 'var(--accent-amber)' }}>
+                    ⚠️ Pago realizado después del vencimiento ({formatDateLabel(selectedExpense.due_date)}). Incluye recargo por mora (+${formatMoney(Number(payData.actual_paid_amount) - selectedExpense.estimated_amount)}), el cual se descontará de tu saldo libre.
+                  </span>
+                ) : Number(payData.actual_paid_amount) < selectedExpense.estimated_amount ? (
+                  <span className="validation-hint">
+                    ❌ No se permite abonar un monto menor al total adeudado (${formatMoney(selectedExpense.estimated_amount)}).
+                  </span>
+                ) : null}
+              </div>
+
+              <div className="form-group">
                 <label>Comprobante / Observaciones</label>
                 <input 
                   type="text" 
@@ -1202,7 +1199,7 @@ export default function App() {
                 <button 
                   type="submit" 
                   className="btn-primary"
-                  disabled={Number(payData.actual_paid_amount) < selectedExpense.estimated_amount}
+                  disabled={!isPaidOnTime && Number(payData.actual_paid_amount) < selectedExpense.estimated_amount}
                 >
                   Confirmar Pago
                 </button>

@@ -1,5 +1,5 @@
 /**
- * Módulo de Reglas de Negocio de FinFix
+ * Módulo de Reglas de Negocio de FinFix (Con Regla Inteligente de Pago A Término vs Con Mora)
  */
 
 export function isDuplicateExpenseTitle(existingExpenses, newTitle, currentExpenseId = null) {
@@ -12,6 +12,13 @@ export function isDuplicateExpenseTitle(existingExpenses, newTitle, currentExpen
   );
 }
 
+/**
+ * Regla de Pago:
+ * - Si la fecha efectiva de pago es EN O ANTES del vencimiento (paymentDate <= due_date),
+ *   el pago se considera A TÉRMINO. Se exige el monto exacto sin recargo.
+ * - Si la fecha efectiva de pago es POSTERIOR al vencimiento (paymentDate > due_date),
+ *   el pago es CON MORA. Se permite ingresar recargo adicional.
+ */
 export function processPaymentData(expense, paidAmount, paymentDate = new Date()) {
   if (!expense) throw new Error('La obligación a abonar no existe');
   
@@ -26,25 +33,26 @@ export function processPaymentData(expense, paidAmount, paymentDate = new Date()
     throw new Error(`El pago no puede ser menor al monto adeudado ($${formatMoneyNumber(estimated)})`);
   }
 
-  const isOverdue = expense.dynamic_status === 'VENCIDO';
+  const pDateStr = paymentDate ? new Date(paymentDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
+  const dDateStr = expense.due_date ? String(expense.due_date).split('T')[0] : pDateStr;
+
+  const isPaidOnTime = pDateStr <= dDateStr;
   let surchargeAmount = 0;
 
-  if (!isOverdue && amount > estimated) {
-    throw new Error('No corresponde abonar recargo porque el gasto está al día. Debe abonarse el monto exacto.');
+  if (isPaidOnTime && amount > estimated) {
+    throw new Error('No corresponde abonar recargo porque la fecha de pago fue a término en o antes del vencimiento.');
   }
 
-  if (isOverdue && amount > estimated) {
+  if (!isPaidOnTime && amount > estimated) {
     surchargeAmount = amount - estimated;
   }
-
-  const date = paymentDate ? new Date(paymentDate) : new Date();
 
   return {
     paidAmount: amount,
     surchargeAmount,
-    paidAt: date.toISOString(),
+    paidAt: new Date(paymentDate).toISOString(),
     status: 'PAGADO',
-    isOverduePayment: isOverdue
+    isOverduePayment: !isPaidOnTime
   };
 }
 
@@ -73,7 +81,6 @@ export function calculateCategorizedMetrics(totalBudget, expenses, currentYearMo
   const budget = Number(totalBudget) || 0;
   const safeExpenses = Array.isArray(expenses) ? expenses : [];
   
-  // Filtrar estrictamente: solo computan los del mes corriente o vencidos pasados
   const activeExpenses = safeExpenses.filter(e => {
     if (e.dynamic_status === 'VENCIDO') return true;
     if (e.due_date && currentYearMonthStr) {
