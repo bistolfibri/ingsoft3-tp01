@@ -1,5 +1,5 @@
 /**
- * Módulo de Reglas de Negocio de FinFix
+ * Módulo de Reglas de Negocio de FinFix (Versión con Cálculo de Interés Total en Cuotas y Período Filtrado)
  */
 
 export function isDuplicateExpenseTitle(existingExpenses, newTitle, currentExpenseId = null) {
@@ -23,7 +23,7 @@ export function processPaymentData(expense, paidAmount, paymentDate = new Date()
   }
 
   if (amount < estimated) {
-    throw new Error(`El pago no puede ser menor al monto adeudado ($${estimated.toLocaleString('es-AR')})`);
+    throw new Error(`El pago no puede ser menor al monto adeudado ($${formatMoneyNumber(estimated)})`);
   }
 
   const isOverdue = expense.dynamic_status === 'VENCIDO';
@@ -48,18 +48,71 @@ export function processPaymentData(expense, paidAmount, paymentDate = new Date()
   };
 }
 
-export function calculateCategorizedMetrics(totalBudget, expenses) {
+/**
+ * Formateador de dinero con punto para miles (5.000, 50.000, 150.000)
+ */
+export function formatMoneyNumber(val) {
+  const num = Math.round(Number(val) || 0);
+  return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+}
+
+/**
+ * Cálculo de Cuotas con Interés sobre el Precio Total:
+ * Precio Final = Precio Base * (1 + %Interes / 100)
+ * Cuota Valor = Precio Final / Cantidad Cuotas
+ */
+export function calculateInstallmentDetails(basePrice, totalInstallments, hasInterest, interestPercentage) {
+  const price = Number(basePrice) || 0;
+  const count = Math.max(1, Number(totalInstallments) || 1);
+  const rate = hasInterest ? (Number(interestPercentage) || 0) : 0;
+
+  const totalPrice = Math.round(price * (1 + (rate / 100)));
+  const installmentAmount = Math.round(totalPrice / count);
+
+  return {
+    basePrice: price,
+    totalPrice,
+    installmentAmount,
+    totalInstallments: count
+  };
+}
+
+/**
+ * Regla 3: Calcula métricas filtrando únicamente el período activo (mes corriente o vencidos anteriores).
+ * Los gastos del próximo mes NO computan en el comprometido ni saldo libre del mes actual.
+ */
+export function calculateCategorizedMetrics(totalBudget, expenses, currentYearMonthStr = null) {
   const budget = Number(totalBudget) || 0;
   const safeExpenses = Array.isArray(expenses) ? expenses : [];
   
-  const fixedExpenses = safeExpenses.filter(e => e.expense_type === 'FIJO');
-  const eventualExpenses = safeExpenses.filter(e => e.expense_type === 'EVENTUAL');
+  // Filtrar para métricas del mes corriente
+  const activeExpenses = safeExpenses.filter(e => {
+    if (!currentYearMonthStr) return true;
+    if (e.dynamic_status === 'VENCIDO') return true; // Vencidos cuentan en el mes actual hasta liquidar
+    
+    if (e.due_date) {
+      const expYM = e.due_date.substring(0, 7); // "YYYY-MM"
+      return expYM <= currentYearMonthStr;
+    }
+    return true;
+  });
 
-  const totalFixedCommitted = fixedExpenses.reduce((sum, e) => sum + Number(e.estimated_amount || 0), 0);
-  const totalEventualCommitted = eventualExpenses.reduce((sum, e) => sum + Number(e.estimated_amount || 0), 0);
+  const fixedExpenses = activeExpenses.filter(e => e.expense_type === 'FIJO');
+  const eventualExpenses = activeExpenses.filter(e => e.expense_type === 'EVENTUAL');
+
+  const totalFixedCommitted = fixedExpenses.reduce((sum, e) => {
+    const amt = e.actual_paid_amount ? Number(e.actual_paid_amount) : Number(e.estimated_amount || 0);
+    return sum + amt;
+  }, 0);
+
+  const totalEventualCommitted = eventualExpenses.reduce((sum, e) => {
+    const amt = e.actual_paid_amount ? Number(e.actual_paid_amount) : Number(e.estimated_amount || 0);
+    return sum + amt;
+  }, 0);
+
   const totalCommitted = totalFixedCommitted + totalEventualCommitted;
 
-  const totalPaid = safeExpenses.reduce((sum, e) => {
+  const totalPaid = activeExpenses.reduce((sum, e) => {
     if (e.dynamic_status === 'PAGADO' || e.status === 'PAGADO') {
       return sum + Number(e.actual_paid_amount || e.estimated_amount || 0);
     }
@@ -85,12 +138,6 @@ export function calculateCategorizedMetrics(totalBudget, expenses) {
   };
 }
 
-/**
- * Regla 4: Determina el estado y calcula dinámicamente la prioridad:
- * - Vencida o de 0 a 3 días: ALTA
- * - De 4 a 15 días: MEDIA
- * - Más de 15 días: BAJA
- */
 export function determineExpenseStatusAndPriority(dueDateString, isPaid, currentDate = new Date()) {
   if (isPaid) return { status: 'PAGADO', priority: 'BAJA' };
   if (!dueDateString) return { status: 'PENDIENTE', priority: 'MEDIA' };

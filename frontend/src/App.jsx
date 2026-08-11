@@ -40,6 +40,12 @@ const DEFAULT_CATEGORIES = [
   { id: 4, name: 'Entretenimiento', icon: 'tv', color: '#8B5CF6' }
 ];
 
+// Helper para formatear siempre con punto en los miles (5.000, 50.000, 150.000)
+const formatMoney = (val) => {
+  const num = Math.round(Number(val) || 0);
+  return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+};
+
 const DEFAULT_DATA = {
   currentPeriodName: 'Agosto 2026',
   metrics: { 
@@ -121,14 +127,14 @@ const DEFAULT_DATA = {
       category_name: 'Cuota',
       category_icon: 'credit-card',
       expense_type: 'EVENTUAL',
-      estimated_amount: 12000,
-      due_date: '2026-11-11',
-      priority: 'BAJA',
+      estimated_amount: 55000,
+      due_date: '2026-08-18',
+      priority: 'MEDIA',
       status: 'PENDIENTE',
       dynamic_status: 'PENDIENTE',
       installment_current: 1,
       installment_total: 3,
-      notes: 'Cuota 1 de 3 con tarjeta'
+      notes: 'Cuota 1 de 3 ($165.000 total)'
     }
   ]
 };
@@ -143,33 +149,32 @@ export default function App() {
   const [showBudgetModal, setShowBudgetModal] = useState(false);
   const [selectedExpense, setSelectedExpense] = useState(null);
 
-  // Fechas acotadas estrictas (1 año exacto atrás hasta 1 año exacto adelante)
+  // Fechas corrientes
   const todayObj = new Date();
   const yearPad = todayObj.getFullYear();
   const monthPad = String(todayObj.getMonth() + 1).padStart(2, '0');
   const dayPad = String(todayObj.getDate()).padStart(2, '0');
   const todayStr = `${yearPad}-${monthPad}-${dayPad}`;
+  const currentPeriodYM = `${yearPad}-${monthPad}`; // "2026-08"
 
-  // Sin años antiguos (2022, 2023, 2024 eliminados)
-  const minDueDateLimit = `${yearPad - 1}-${monthPad}-${dayPad}`;
-  const maxDueDateLimit = `${yearPad + 1}-${monthPad}-${dayPad}`;
-
-  // Rango para registrar pago (Máximo el día de HOY, Mínimo 1 mes atrás)
-  const oneMonthAgoObj = new Date(yearPad, todayObj.getMonth() - 1, todayObj.getDate());
-  const minPaymentDateLimit = `${oneMonthAgoObj.getFullYear()}-${String(oneMonthAgoObj.getMonth() + 1).padStart(2, '0')}-${String(oneMonthAgoObj.getDate()).padStart(2, '0')}`;
-  const maxPaymentDateLimit = todayStr;
+  // Estado para selector de fecha independiente (Día, Mes, Año) sin desplegables viejos
+  const [dateParts, setDateParts] = useState({
+    day: dayPad,
+    month: monthPad,
+    year: String(yearPad)
+  });
 
   const [formData, setFormData] = useState({
     title: '',
     category_id: '1',
     expense_type: 'FIJO',
+    base_amount: '',
     estimated_amount: '',
-    due_date: todayStr,
     notes: '',
     installment_current: 1,
     installment_total: 3,
     has_interest: 'NO',
-    interest_rate: '5',
+    interest_rate: '10',
     remember_next_month: 'YES'
   });
 
@@ -217,6 +222,7 @@ export default function App() {
     return { status: 'PENDIENTE', priority: 'BAJA' };
   };
 
+  // Recálculo de métricas filtrando ÚNICAMENTE las obligaciones del mes corriente (Agosto 2026) o vencidos pasados
   const recalculateDataMetrics = (currentBudget, expensesList) => {
     const budgetNum = Number(currentBudget) || 0;
     const rawExpenses = Array.isArray(expensesList) ? expensesList : [];
@@ -230,14 +236,32 @@ export default function App() {
       };
     });
 
-    const fixed = expenses.filter(e => e.expense_type === 'FIJO');
-    const eventual = expenses.filter(e => e.expense_type === 'EVENTUAL');
+    // Filtrar estrictamente: solo computan los del mes corriente o vencidos pasados
+    const currentPeriodExpenses = expenses.filter(e => {
+      if (e.dynamic_status === 'VENCIDO') return true;
+      if (e.due_date) {
+        const expYM = e.due_date.substring(0, 7);
+        return expYM <= currentPeriodYM;
+      }
+      return true;
+    });
 
-    const totalFixedCommitted = fixed.reduce((s, e) => s + Number(e.estimated_amount || 0), 0);
-    const totalEventualCommitted = eventual.reduce((s, e) => s + Number(e.estimated_amount || 0), 0);
+    const fixed = currentPeriodExpenses.filter(e => e.expense_type === 'FIJO');
+    const eventual = currentPeriodExpenses.filter(e => e.expense_type === 'EVENTUAL');
+
+    const totalFixedCommitted = fixed.reduce((s, e) => {
+      const amt = e.actual_paid_amount ? Number(e.actual_paid_amount) : Number(e.estimated_amount || 0);
+      return s + amt;
+    }, 0);
+
+    const totalEventualCommitted = eventual.reduce((s, e) => {
+      const amt = e.actual_paid_amount ? Number(e.actual_paid_amount) : Number(e.estimated_amount || 0);
+      return s + amt;
+    }, 0);
+
     const totalCommitted = totalFixedCommitted + totalEventualCommitted;
 
-    const totalPaid = expenses.reduce((s, e) => {
+    const totalPaid = currentPeriodExpenses.reduce((s, e) => {
       if (e.dynamic_status === 'PAGADO' || e.status === 'PAGADO') {
         return s + Number(e.actual_paid_amount || e.estimated_amount || 0);
       }
@@ -296,16 +320,40 @@ export default function App() {
   const safeCategories = DEFAULT_CATEGORIES;
   const safeMetrics = data?.metrics || DEFAULT_DATA.metrics;
 
+  // Filtrado visual: En el mes corriente se muestran solo los correspondientes al período actual o vencidos
+  const currentViewableExpenses = safeExpenses.filter(e => {
+    if (e.dynamic_status === 'VENCIDO') return true;
+    if (e.due_date) {
+      const expYM = e.due_date.substring(0, 7);
+      return expYM <= currentPeriodYM;
+    }
+    return true;
+  });
+
+  const selectedDueDate = `${dateParts.year}-${dateParts.month}-${dateParts.day}`;
+
+  // Cálculo de Cuotas con Interés sobre el Total:
+  const isCuotaCategory = safeCategories.find(c => String(c.id) === String(formData.category_id))?.name === 'Cuota';
+  
+  const basePriceNum = Number(formData.base_amount) || 0;
+  const interestRateNum = formData.has_interest === 'YES' ? (Number(formData.interest_rate) || 0) : 0;
+  const totalPriceCalculated = Math.round(basePriceNum * (1 + (interestRateNum / 100)));
+  const totalInstallmentCount = Math.max(1, Number(formData.installment_total) || 1);
+  const calculatedInstallmentAmount = Math.round(totalPriceCalculated / totalInstallmentCount);
+
+  const effectiveAmountToUse = isCuotaCategory 
+    ? calculatedInstallmentAmount 
+    : (Number(formData.estimated_amount) || 0);
+
   const isDuplicateTitle = safeExpenses.some(exp => 
     exp.title && exp.title.trim().toLowerCase() === formData.title.trim().toLowerCase()
   );
 
   const isTitleValid = formData.title.trim().length > 0 && !isDuplicateTitle;
-  const isAmountValid = Number(formData.estimated_amount) > 0;
-  const isDateValid = Boolean(formData.due_date);
-  const isFormValid = isTitleValid && isAmountValid && isDateValid;
+  const isAmountValid = isCuotaCategory ? basePriceNum > 0 : Number(formData.estimated_amount) > 0;
+  const isFormValid = isTitleValid && isAmountValid;
 
-  const simulatedCommitted = (safeMetrics.totalCommitted || 0) + (Number(formData.estimated_amount) || 0);
+  const simulatedCommitted = (safeMetrics.totalCommitted || 0) + effectiveAmountToUse;
   const simulatedPercentage = (safeMetrics.budget || 520000) > 0 
     ? Math.min(100, Math.round((simulatedCommitted / safeMetrics.budget) * 100)) 
     : 100;
@@ -315,14 +363,13 @@ export default function App() {
     if (!isFormValid) return;
 
     const catObj = safeCategories.find(c => String(c.id) === String(formData.category_id)) || safeCategories[0];
-    const isCuota = catObj.name === 'Cuota';
-
     let titleText = formData.title.trim();
-    if (isCuota && !titleText.includes('Cuota')) {
+
+    if (isCuotaCategory && !titleText.includes('Cuota')) {
       titleText = `${titleText} (Cuota ${formData.installment_current}/${formData.installment_total})`;
     }
 
-    const { status: initStatus, priority: initPriority } = computeStatusAndPriority(formData.due_date, false);
+    const { status: initStatus, priority: initPriority } = computeStatusAndPriority(selectedDueDate, false);
 
     const newExpItem = {
       id: Date.now(),
@@ -330,27 +377,29 @@ export default function App() {
       category_id: Number(formData.category_id),
       category_name: catObj.name,
       category_icon: catObj.icon || 'wallet',
-      expense_type: isCuota ? 'EVENTUAL' : (formData.expense_type === 'EVENTUAL' ? 'EVENTUAL' : 'FIJO'),
-      estimated_amount: Number(formData.estimated_amount),
-      due_date: formData.due_date,
+      expense_type: isCuotaCategory ? 'EVENTUAL' : (formData.expense_type === 'EVENTUAL' ? 'EVENTUAL' : 'FIJO'),
+      estimated_amount: effectiveAmountToUse,
+      due_date: selectedDueDate,
       priority: initPriority,
       status: 'PENDIENTE',
       dynamic_status: initStatus,
       effective_priority: initPriority,
       actual_paid_amount: null,
-      installment_current: isCuota ? Number(formData.installment_current) : null,
-      installment_total: isCuota ? Number(formData.installment_total) : null,
-      notes: formData.notes || ''
+      installment_current: isCuotaCategory ? Number(formData.installment_current) : null,
+      installment_total: isCuotaCategory ? Number(formData.installment_total) : null,
+      notes: isCuotaCategory 
+        ? `Precio total: $${formatMoney(totalPriceCalculated)} (${formData.installment_total} cuotas de $${formatMoney(calculatedInstallmentAmount)})`
+        : (formData.notes || '')
     };
 
     let updatedList = [newExpItem, ...safeExpenses];
 
-    // Lógica para Cuota N+1 (Con / Sin Interés)
-    if (isCuota && Number(formData.installment_current) < Number(formData.installment_total)) {
+    // Generar cuota N+1 para el mes que viene (NO aparece en el resumen de este mes)
+    if (isCuotaCategory && Number(formData.installment_current) < Number(formData.installment_total)) {
       const nextNum = Number(formData.installment_current) + 1;
       const totalNum = Number(formData.installment_total);
       
-      const dueParts = formData.due_date.split('-');
+      const dueParts = selectedDueDate.split('-');
       const dYear = parseInt(dueParts[0], 10);
       const dMonth = parseInt(dueParts[1], 10);
       const dDay = dueParts[2];
@@ -365,11 +414,6 @@ export default function App() {
       const nextDueDateStr = `${nextYear}-${String(nextMonth).padStart(2, '0')}-${dDay}`;
       const cleanBaseConcept = formData.title.trim().replace(/\s*\(Cuota \d+\/\d+\)/, '');
 
-      let nextAmount = Number(formData.estimated_amount);
-      if (formData.has_interest === 'YES' && Number(formData.interest_rate) > 0) {
-        nextAmount = Math.round(nextAmount * (1 + (Number(formData.interest_rate) / 100)));
-      }
-
       const { status: nextInitStatus, priority: nextInitPriority } = computeStatusAndPriority(nextDueDateStr, false);
 
       const nextCuotaItem = {
@@ -379,7 +423,7 @@ export default function App() {
         category_name: catObj.name,
         category_icon: catObj.icon || 'wallet',
         expense_type: 'EVENTUAL',
-        estimated_amount: nextAmount,
+        estimated_amount: calculatedInstallmentAmount,
         due_date: nextDueDateStr,
         priority: nextInitPriority,
         status: 'PENDIENTE',
@@ -388,17 +432,15 @@ export default function App() {
         actual_paid_amount: null,
         installment_current: nextNum,
         installment_total: totalNum,
-        notes: formData.has_interest === 'YES' 
-          ? `Próxima cuota con ${formData.interest_rate}% de recargo de interés`
-          : `Generado automáticamente para el próximo mes`
+        notes: `Programado para el mes correspondiente ($${formatMoney(calculatedInstallmentAmount)})`
       };
 
       updatedList = [nextCuotaItem, ...updatedList];
     }
 
-    // Lógica para Gasto Fijo Recurrente ("Recordar para el próximo mes")
-    if (!isCuota && formData.expense_type === 'FIJO' && formData.remember_next_month === 'YES') {
-      const dueParts = formData.due_date.split('-');
+    // Gasto Fijo Recurrente para el próximo mes (NO aparece en el resumen de este mes)
+    if (!isCuotaCategory && formData.expense_type === 'FIJO' && formData.remember_next_month === 'YES') {
+      const dueParts = selectedDueDate.split('-');
       const dYear = parseInt(dueParts[0], 10);
       const dMonth = parseInt(dueParts[1], 10);
       const dDay = dueParts[2];
@@ -427,7 +469,7 @@ export default function App() {
         dynamic_status: nextFixedStatus,
         effective_priority: nextFixedPriority,
         actual_paid_amount: null,
-        notes: 'Recordatorio automático de gasto fijo para el mes próximo (monto editable)'
+        notes: 'Recordatorio automático para el mes próximo (monto editable)'
       };
 
       updatedList = [nextFixedItem, ...updatedList];
@@ -452,17 +494,18 @@ export default function App() {
       title: '',
       category_id: '1',
       expense_type: 'FIJO',
+      base_amount: '',
       estimated_amount: '',
-      due_date: todayStr,
       notes: '',
       installment_current: 1,
       installment_total: 3,
       has_interest: 'NO',
-      interest_rate: '5',
+      interest_rate: '10',
       remember_next_month: 'YES'
     });
   };
 
+  // Al pagar con recargo, la diferencia se suma al comprometido/pagado y RESTA del saldo libre disponible
   const handlePaySubmit = async (e) => {
     e.preventDefault();
     if (!selectedExpense) return;
@@ -493,7 +536,7 @@ export default function App() {
     try {
       const res = await payExpense(selectedExpense.id, payData);
       if (res && res.surchargeAmount > 0) {
-        alert(`ℹ️ Pago registrado con recargo por mora: +$${res.surchargeAmount.toLocaleString('es-AR')}`);
+        alert(`ℹ️ Pago registrado con recargo por mora: +$${formatMoney(res.surchargeAmount)}. Este importe se descontó del saldo libre.`);
       }
     } catch (err) {
       console.warn('Pago actualizado en memoria local');
@@ -544,7 +587,7 @@ export default function App() {
     }
   };
 
-  const filteredExpenses = safeExpenses.filter(exp => {
+  const filteredExpenses = currentViewableExpenses.filter(exp => {
     if (filter === 'TODOS') return true;
     if (filter === 'FIJO') return exp.expense_type === 'FIJO';
     if (filter === 'EVENTUAL') return exp.expense_type === 'EVENTUAL';
@@ -583,7 +626,6 @@ export default function App() {
     return 'var(--accent-sage)';
   };
 
-  // Opciones dinámicas de número de cuota actual (1 hasta total seleccionada)
   const currentInstallmentOptions = Array.from(
     { length: Number(formData.installment_total) || 1 }, 
     (_, i) => i + 1
@@ -654,7 +696,7 @@ export default function App() {
             <span>Presupuesto Mensual</span>
             <Wallet size={18} color="var(--accent-navy)" />
           </div>
-          <div className="metric-value">${(safeMetrics.budget || 0).toLocaleString('es-AR')}</div>
+          <div className="metric-value">${formatMoney(safeMetrics.budget)}</div>
           <div className="metric-sub">Haz clic para modificar objetivo</div>
         </div>
 
@@ -663,7 +705,7 @@ export default function App() {
             <span>Comprometido Total</span>
             <Clock size={18} color="var(--accent-amber)" />
           </div>
-          <div className="metric-value">${(safeMetrics.totalCommitted || 0).toLocaleString('es-AR')}</div>
+          <div className="metric-value">${formatMoney(safeMetrics.totalCommitted)}</div>
           <div className="health-bar-container">
             <div className="health-bar-track">
               <div 
@@ -685,8 +727,8 @@ export default function App() {
             <span>Pagado a la Fecha</span>
             <CheckCircle2 size={18} color="var(--accent-sage)" />
           </div>
-          <div className="metric-value">${(safeMetrics.totalPaid || 0).toLocaleString('es-AR')}</div>
-          <div className="metric-sub">{safeExpenses.filter(e => e.dynamic_status === 'PAGADO' || e.status === 'PAGADO').length} obligaciones liquidadas</div>
+          <div className="metric-value">${formatMoney(safeMetrics.totalPaid)}</div>
+          <div className="metric-sub">{currentViewableExpenses.filter(e => e.dynamic_status === 'PAGADO' || e.status === 'PAGADO').length} obligaciones liquidadas</div>
         </div>
 
         <div className="metric-card">
@@ -695,7 +737,7 @@ export default function App() {
             <AlertCircle size={18} color={(safeMetrics.available || 0) >= 0 ? "var(--accent-sage)" : "var(--accent-danger)"} />
           </div>
           <div className="metric-value" style={{ color: (safeMetrics.available || 0) >= 0 ? 'var(--text-primary)' : 'var(--accent-danger)' }}>
-            ${(safeMetrics.available || 0).toLocaleString('es-AR')}
+            ${formatMoney(safeMetrics.available)}
           </div>
           <div className="metric-sub">Estado: <strong>{safeMetrics.status || 'NORMAL'}</strong></div>
         </div>
@@ -706,7 +748,7 @@ export default function App() {
         <div className="breakdown-box">
           <h4>
             <span>Gastos Fijos</span>
-            <span style={{ color: '#3730A3' }}>${(safeMetrics.totalFixedCommitted || 0).toLocaleString('es-AR')}</span>
+            <span style={{ color: '#3730A3' }}>${formatMoney(safeMetrics.totalFixedCommitted)}</span>
           </h4>
           <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Alquiler, expensas y servicios indispensables.</p>
         </div>
@@ -714,7 +756,7 @@ export default function App() {
         <div className="breakdown-box">
           <h4>
             <span>Eventuales</span>
-            <span style={{ color: '#6B21A8' }}>${(safeMetrics.totalEventualCommitted || 0).toLocaleString('es-AR')}</span>
+            <span style={{ color: '#6B21A8' }}>${formatMoney(safeMetrics.totalEventualCommitted)}</span>
           </h4>
           <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Compras en cuotas, tarjetas o entretenimientos.</p>
         </div>
@@ -741,11 +783,11 @@ export default function App() {
           ))}
         </div>
         <div style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
-          {filteredExpenses.length} obligaciones registradas
+          {filteredExpenses.length} obligaciones registradas en el período
         </div>
       </div>
 
-      {/* Expenses List (Limpia sin puntos separadores) */}
+      {/* Expenses List (Limpia sin puntos separadores, con prioridad solo en texto) */}
       <div className="expenses-list">
         {loading ? (
           <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-secondary)' }}>
@@ -753,7 +795,7 @@ export default function App() {
           </div>
         ) : filteredExpenses.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-secondary)', background: 'var(--bg-surface)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
-            No hay obligaciones en este filtro.
+            No hay obligaciones en este filtro para el período corriente.
           </div>
         ) : (
           filteredExpenses.map((exp) => {
@@ -771,9 +813,12 @@ export default function App() {
                     <div className="expense-meta" style={{ gap: '16px' }}>
                       <span>Categoría: {exp.category_name || 'General'}</span>
                       <span>{formatDateLabel(exp.due_date)}</span>
-                      <span className={`prio-pill prio-${effectivePrio}`}>
-                        Prioridad: {effectivePrio}
+                      
+                      {/* Texto directo de prioridad coloreado sin recuadro */}
+                      <span className={`prio-text prio-text-${effectivePrio}`}>
+                        Prioridad {effectivePrio.toLowerCase()}
                       </span>
+
                       {exp.notes && (
                         <span style={{ fontStyle: 'italic', color: 'var(--text-muted)' }}>"{exp.notes}"</span>
                       )}
@@ -784,11 +829,11 @@ export default function App() {
                 <div className="expense-actions">
                   <div style={{ textAlign: 'right' }}>
                     <div style={{ fontWeight: '800', fontSize: '1.1rem', color: 'var(--text-primary)' }}>
-                      ${(exp.estimated_amount || 0).toLocaleString('es-AR')}
+                      ${formatMoney(exp.estimated_amount)}
                     </div>
                     {exp.actual_paid_amount && (
                       <div style={{ fontSize: '0.75rem', color: 'var(--accent-sage)', fontWeight: '600' }}>
-                        Abonado: ${(exp.actual_paid_amount || 0).toLocaleString('es-AR')}
+                        Abonado: ${formatMoney(exp.actual_paid_amount)}
                       </div>
                     )}
                   </div>
@@ -836,7 +881,7 @@ export default function App() {
                 <input 
                   type="text" 
                   className="form-input" 
-                  placeholder="Ej: Alquiler, Expensas, Zapatillas"
+                  placeholder="Ej: Alquiler, Expensas, Remera"
                   value={formData.title}
                   onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                   required
@@ -883,8 +928,8 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Lógica de Gasto Fijo Recurrente: Recordar próximo mes */}
-              {safeCategories.find(c => String(c.id) === String(formData.category_id))?.name !== 'Cuota' && formData.expense_type === 'FIJO' && (
+              {/* Lógica de Gasto Fijo Recurrente */}
+              {!isCuotaCategory && formData.expense_type === 'FIJO' && (
                 <div className="form-group" style={{ background: 'var(--bg-subtle)', padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
                   <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
                     <input 
@@ -897,10 +942,23 @@ export default function App() {
                 </div>
               )}
 
-              {/* Selector dinámico de cuotas (Cuota Actual <= Total Cuotas) + Interés mensual */}
-              {safeCategories.find(c => String(c.id) === String(formData.category_id))?.name === 'Cuota' && (
+              {/* Lógica de Cuotas con Interés sobre el Total */}
+              {isCuotaCategory && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', background: 'var(--bg-subtle)', padding: '14px', borderRadius: '10px', border: '1px solid var(--border-color)' }}>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                    <div className="form-group">
+                      <label>Precio Total del Producto ($) *</label>
+                      <input 
+                        type="number" 
+                        min="1"
+                        className="form-input" 
+                        placeholder="Ej: 150000"
+                        value={formData.base_amount}
+                        onChange={(e) => setFormData({ ...formData, base_amount: e.target.value })}
+                        required
+                      />
+                    </div>
+
                     <div className="form-group">
                       <label>Cantidad Total de Cuotas</label>
                       <select
@@ -920,7 +978,9 @@ export default function App() {
                         ))}
                       </select>
                     </div>
+                  </div>
 
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                     <div className="form-group">
                       <label>Cuota Actual que Abonás</label>
                       <select
@@ -933,71 +993,104 @@ export default function App() {
                         ))}
                       </select>
                     </div>
-                  </div>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', paddingTop: '8px', borderTop: '1px solid var(--border-color)' }}>
                     <div className="form-group">
-                      <label>Interés en la Cuota</label>
+                      <label>Interés en la Compra</label>
                       <select
                         className="form-input"
                         value={formData.has_interest}
                         onChange={(e) => setFormData({ ...formData, has_interest: e.target.value })}
                       >
-                        <option value="NO">Sin Interés (Tasa 0%)</option>
-                        <option value="YES">Con Interés Mensual</option>
+                        <option value="NO">Sin Interés (0%)</option>
+                        <option value="YES">Con Recargo de Interés</option>
                       </select>
                     </div>
-
-                    {formData.has_interest === 'YES' && (
-                      <div className="form-group">
-                        <label>% Recargo Interés Mensual</label>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <input 
-                            type="number" 
-                            min="0.1" 
-                            step="0.1"
-                            className="form-input" 
-                            placeholder="Ej: 5"
-                            value={formData.interest_rate}
-                            onChange={(e) => setFormData({ ...formData, interest_rate: e.target.value })}
-                            required
-                          />
-                          <Percent size={18} color="var(--text-secondary)" />
-                        </div>
-                      </div>
-                    )}
                   </div>
+
+                  {formData.has_interest === 'YES' && (
+                    <div className="form-group">
+                      <label>% Interés Total Aplicado</label>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <input 
+                          type="number" 
+                          min="0.1" 
+                          step="0.1"
+                          className="form-input" 
+                          placeholder="Ej: 10"
+                          value={formData.interest_rate}
+                          onChange={(e) => setFormData({ ...formData, interest_rate: e.target.value })}
+                          required
+                        />
+                        <Percent size={18} color="var(--text-secondary)" />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Resumen dinámico transparente del valor de cada cuota */}
+                  {basePriceNum > 0 && (
+                    <div style={{ background: '#FFFFFF', padding: '10px 12px', borderRadius: '6px', border: '1px solid var(--border-color)', fontSize: '0.8rem', color: 'var(--text-primary)' }}>
+                      <div>Precio Final con Interés: <strong>${formatMoney(totalPriceCalculated)}</strong></div>
+                      <div>Valor de cada Cuota (1/{totalInstallmentCount}): <strong>${formatMoney(calculatedInstallmentAmount)}</strong></div>
+                    </div>
+                  )}
                 </div>
               )}
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                <div className="form-group">
-                  <label>Monto ($) *</label>
-                  <input 
-                    type="number" 
-                    min="1"
-                    className="form-input" 
-                    placeholder="Ej: 45000"
-                    value={formData.estimated_amount}
-                    onChange={(e) => setFormData({ ...formData, estimated_amount: e.target.value })}
-                    required
-                  />
-                  {Number(formData.estimated_amount) <= 0 && formData.estimated_amount !== '' && (
-                    <span className="validation-hint">El monto debe ser mayor a $0</span>
-                  )}
-                </div>
+                {!isCuotaCategory && (
+                  <div className="form-group">
+                    <label>Monto ($) *</label>
+                    <input 
+                      type="number" 
+                      min="1"
+                      className="form-input" 
+                      placeholder="Ej: 45000"
+                      value={formData.estimated_amount}
+                      onChange={(e) => setFormData({ ...formData, estimated_amount: e.target.value })}
+                      required
+                    />
+                  </div>
+                )}
 
-                <div className="form-group">
+                {/* Custom Date Selector limpio con 3 selects: Día, Mes y Años estricto (2025, 2026, 2027) */}
+                <div className="form-group" style={{ gridColumn: isCuotaCategory ? 'span 2' : 'span 1' }}>
                   <label>Fecha de Vencimiento *</label>
-                  <input 
-                    type="date" 
-                    className="form-input" 
-                    value={formData.due_date}
-                    min={minDueDateLimit}
-                    max={maxDueDateLimit}
-                    onChange={(e) => setFormData({ ...formData, due_date: e.target.value })}
-                    required
-                  />
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr 1fr', gap: '6px' }}>
+                    <select
+                      className="form-input"
+                      value={dateParts.day}
+                      onChange={(e) => setDateParts({ ...dateParts, day: e.target.value })}
+                    >
+                      {Array.from({ length: 31 }, (_, i) => String(i + 1).padStart(2, '0')).map(d => (
+                        <option key={d} value={d}>{d}</option>
+                      ))}
+                    </select>
+
+                    <select
+                      className="form-input"
+                      value={dateParts.month}
+                      onChange={(e) => setDateParts({ ...dateParts, month: e.target.value })}
+                    >
+                      {[
+                        { val: '01', name: 'Ene' }, { val: '02', name: 'Feb' }, { val: '03', name: 'Mar' },
+                        { val: '04', name: 'Abr' }, { val: '05', name: 'May' }, { val: '06', name: 'Jun' },
+                        { val: '07', name: 'Jul' }, { val: '08', name: 'Ago' }, { val: '09', name: 'Sep' },
+                        { val: '10', name: 'Oct' }, { val: '11', name: 'Nov' }, { val: '12', name: 'Dic' }
+                      ].map(m => (
+                        <option key={m.val} value={m.val}>{m.name}</option>
+                      ))}
+                    </select>
+
+                    <select
+                      className="form-input"
+                      value={dateParts.year}
+                      onChange={(e) => setDateParts({ ...dateParts, year: e.target.value })}
+                    >
+                      <option value="2025">2025</option>
+                      <option value="2026">2026</option>
+                      <option value="2027">2027</option>
+                    </select>
+                  </div>
                 </div>
               </div>
 
@@ -1057,16 +1150,16 @@ export default function App() {
                 />
                 {selectedExpense.dynamic_status !== 'VENCIDO' ? (
                   <span className="validation-hint" style={{ color: 'var(--text-secondary)' }}>
-                    ℹ️ Al estar al día, se abona exactamente el monto fijado (${(selectedExpense.estimated_amount || 0).toLocaleString('es-AR')}).
+                    ℹ️ Al estar al día, se abona exactamente el monto fijado (${formatMoney(selectedExpense.estimated_amount)}).
                   </span>
                 ) : Number(payData.actual_paid_amount) > selectedExpense.estimated_amount ? (
                   <span className="validation-hint" style={{ color: 'var(--accent-amber)' }}>
                     ⚠️ Incluye recargo por pago fuera de término (+$
-                    {(Number(payData.actual_paid_amount) - selectedExpense.estimated_amount).toLocaleString('es-AR')}).
+                    {formatMoney(Number(payData.actual_paid_amount) - selectedExpense.estimated_amount)}). Este recargo reducirá tu saldo libre disponible.
                   </span>
                 ) : Number(payData.actual_paid_amount) < selectedExpense.estimated_amount ? (
                   <span className="validation-hint">
-                    ❌ No se permite abonar un monto menor al total adeudado (${(selectedExpense.estimated_amount || 0).toLocaleString('es-AR')}).
+                    ❌ No se permite abonar un monto menor al total adeudado (${formatMoney(selectedExpense.estimated_amount)}).
                   </span>
                 ) : null}
               </div>
@@ -1077,13 +1170,12 @@ export default function App() {
                   type="date" 
                   className="form-input"
                   value={payData.payment_date}
-                  min={minPaymentDateLimit}
-                  max={maxPaymentDateLimit}
+                  max={todayStr}
                   onChange={(e) => setPayData({ ...payData, payment_date: e.target.value })}
                   required
                 />
                 <span style={{ fontSize: '0.725rem', color: 'var(--text-secondary)' }}>
-                  Permitido: Hasta el día de HOY ({todayStr}) (máximo 1 mes atrás)
+                  Permitido: Hasta el día de HOY ({todayStr})
                 </span>
               </div>
 
