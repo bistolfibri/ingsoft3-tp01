@@ -40,7 +40,7 @@ const DEFAULT_CATEGORIES = [
   { id: 4, name: 'Entretenimiento', icon: 'tv', color: '#8B5CF6' }
 ];
 
-// Helper para formatear siempre con punto en los miles (5.000, 50.000, 150.000)
+// Formateador numérico argentino con punto para miles (ej: 5.000, 50.000, 150.000)
 const formatMoney = (val) => {
   const num = Math.round(Number(val) || 0);
   return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
@@ -51,11 +51,11 @@ const DEFAULT_DATA = {
   metrics: { 
     budget: 520000, 
     totalFixedCommitted: 325000, 
-    totalEventualCommitted: 32000, 
-    totalCommitted: 357000, 
+    totalEventualCommitted: 55000, 
+    totalCommitted: 380000, 
     totalPaid: 14200, 
-    available: 163000, 
-    percentage: 69, 
+    available: 140000, 
+    percentage: 73, 
     status: 'NORMAL' 
   },
   categories: DEFAULT_CATEGORIES,
@@ -157,8 +157,15 @@ export default function App() {
   const todayStr = `${yearPad}-${monthPad}-${dayPad}`;
   const currentPeriodYM = `${yearPad}-${monthPad}`; // "2026-08"
 
-  // Estado para selector de fecha independiente (Día, Mes, Año) sin desplegables viejos
+  // Selector de fecha limpio sin desplegables antiguos (Día, Mes, Año estricto 2025, 2026, 2027)
   const [dateParts, setDateParts] = useState({
+    day: dayPad,
+    month: monthPad,
+    year: String(yearPad)
+  });
+
+  // Selector de fecha para el modal de pago
+  const [payDateParts, setPayDateParts] = useState({
     day: dayPad,
     month: monthPad,
     year: String(yearPad)
@@ -187,9 +194,9 @@ export default function App() {
   const [newBudget, setNewBudget] = useState('');
 
   // Lógica Dinámica de Prioridades:
-  // - Vencida o <= 3 días: ALTA
-  // - 4 a 15 días: MEDIA
-  // - Más de 15 días: BAJA
+  // - Vencida o <= 3 días: ALTA (Rojo)
+  // - 4 a 15 días: MEDIA (Amarillo)
+  // - Más de 15 días: BAJA (Verde)
   const computeStatusAndPriority = (dueDateStr, isPaid) => {
     if (isPaid) return { status: 'PAGADO', priority: 'BAJA' };
     if (!dueDateStr) return { status: 'PENDIENTE', priority: 'MEDIA' };
@@ -236,7 +243,7 @@ export default function App() {
       };
     });
 
-    // Filtrar estrictamente: solo computan los del mes corriente o vencidos pasados
+    // Filtrar estrictamente para Agosto 2026: los de meses futuros NO computan en comprometido ni saldo libre
     const currentPeriodExpenses = expenses.filter(e => {
       if (e.dynamic_status === 'VENCIDO') return true;
       if (e.due_date) {
@@ -320,7 +327,7 @@ export default function App() {
   const safeCategories = DEFAULT_CATEGORIES;
   const safeMetrics = data?.metrics || DEFAULT_DATA.metrics;
 
-  // Filtrado visual: En el mes corriente se muestran solo los correspondientes al período actual o vencidos
+  // Filtrado visual: En el mes corriente se muestran solo los correspondientes al período actual (Agosto 2026) o vencidos
   const currentViewableExpenses = safeExpenses.filter(e => {
     if (e.dynamic_status === 'VENCIDO') return true;
     if (e.due_date) {
@@ -505,12 +512,13 @@ export default function App() {
     });
   };
 
-  // Al pagar con recargo, la diferencia se suma al comprometido/pagado y RESTA del saldo libre disponible
+  // Al pagar con recargo por mora, la diferencia incrementa el total pagado/comprometido y RESTA del saldo libre
   const handlePaySubmit = async (e) => {
     e.preventDefault();
     if (!selectedExpense) return;
 
     const paidAmt = Number(payData.actual_paid_amount) || selectedExpense.estimated_amount;
+    const selectedPayDate = `${payDateParts.year}-${payDateParts.month}-${payDateParts.day}`;
 
     const updatedRaw = safeExpenses.map(exp => {
       if (exp.id === selectedExpense.id) {
@@ -519,7 +527,7 @@ export default function App() {
           status: 'PAGADO',
           dynamic_status: 'PAGADO',
           actual_paid_amount: paidAmt,
-          paid_at: payData.payment_date
+          paid_at: selectedPayDate
         };
       }
       return exp;
@@ -534,9 +542,9 @@ export default function App() {
     }));
 
     try {
-      const res = await payExpense(selectedExpense.id, payData);
+      const res = await payExpense(selectedExpense.id, { ...payData, payment_date: selectedPayDate });
       if (res && res.surchargeAmount > 0) {
-        alert(`ℹ️ Pago registrado con recargo por mora: +$${formatMoney(res.surchargeAmount)}. Este importe se descontó del saldo libre.`);
+        alert(`ℹ️ Pago registrado con recargo por mora: +$${formatMoney(res.surchargeAmount)}. Este recargo se descontó directamente de tu saldo libre.`);
       }
     } catch (err) {
       console.warn('Pago actualizado en memoria local');
@@ -1129,7 +1137,7 @@ export default function App() {
         </div>
       )}
 
-      {/* Modal Registrar Pago con Fecha Máxima = HOY */}
+      {/* Modal Registrar Pago con Selector Limpio de Fecha (Día, Mes, Año estricto 2025-2027) */}
       {showPayModal && selectedExpense && (
         <div className="modal-overlay">
           <div className="modal-content">
@@ -1166,17 +1174,42 @@ export default function App() {
 
               <div className="form-group">
                 <label>Fecha Efectiva de Pago *</label>
-                <input 
-                  type="date" 
-                  className="form-input"
-                  value={payData.payment_date}
-                  max={todayStr}
-                  onChange={(e) => setPayData({ ...payData, payment_date: e.target.value })}
-                  required
-                />
-                <span style={{ fontSize: '0.725rem', color: 'var(--text-secondary)' }}>
-                  Permitido: Hasta el día de HOY ({todayStr})
-                </span>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr 1fr', gap: '6px' }}>
+                  <select
+                    className="form-input"
+                    value={payDateParts.day}
+                    onChange={(e) => setPayDateParts({ ...payDateParts, day: e.target.value })}
+                  >
+                    {Array.from({ length: 31 }, (_, i) => String(i + 1).padStart(2, '0')).map(d => (
+                      <option key={d} value={d}>{d}</option>
+                    ))}
+                  </select>
+
+                  <select
+                    className="form-input"
+                    value={payDateParts.month}
+                    onChange={(e) => setPayDateParts({ ...payDateParts, month: e.target.value })}
+                  >
+                    {[
+                      { val: '01', name: 'Ene' }, { val: '02', name: 'Feb' }, { val: '03', name: 'Mar' },
+                      { val: '04', name: 'Abr' }, { val: '05', name: 'May' }, { val: '06', name: 'Jun' },
+                      { val: '07', name: 'Jul' }, { val: '08', name: 'Ago' }, { val: '09', name: 'Sep' },
+                      { val: '10', name: 'Oct' }, { val: '11', name: 'Nov' }, { val: '12', name: 'Dic' }
+                    ].map(m => (
+                      <option key={m.val} value={m.val}>{m.name}</option>
+                    ))}
+                  </select>
+
+                  <select
+                    className="form-input"
+                    value={payDateParts.year}
+                    onChange={(e) => setPayDateParts({ ...payDateParts, year: e.target.value })}
+                  >
+                    <option value="2025">2025</option>
+                    <option value="2026">2026</option>
+                    <option value="2027">2027</option>
+                  </select>
+                </div>
               </div>
 
               <div className="form-group">

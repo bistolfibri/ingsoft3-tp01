@@ -1,9 +1,10 @@
 import pool from '../config/db.js';
 import {
   calculateCategorizedMetrics,
-  determineExpenseStatus,
+  determineExpenseStatusAndPriority,
   validateExpenseInput,
-  processPaymentData
+  processPaymentData,
+  formatMoneyNumber
 } from '../services/expenseRules.js';
 
 let mockCategories = [
@@ -18,6 +19,7 @@ let mockBudget = 520000;
 const currentYear = new Date().getFullYear();
 const currentMonth = new Date().getMonth() + 1; // 1-12
 const currentMonthFormatted = String(currentMonth).padStart(2, '0');
+const currentPeriodYM = `${currentYear}-${currentMonthFormatted}`;
 
 let mockExpenses = [
   {
@@ -43,8 +45,8 @@ let mockExpenses = [
     category_icon: 'home',
     expense_type: 'FIJO',
     estimated_amount: 45000,
-    due_date: `${currentYear}-${currentMonthFormatted}-15`,
-    priority: 'ALTA',
+    due_date: `${currentYear}-${currentMonthFormatted}-25`,
+    priority: 'MEDIA',
     status: 'PENDIENTE',
     actual_paid_amount: null,
     paid_at: null,
@@ -58,8 +60,8 @@ let mockExpenses = [
     category_icon: 'zap',
     expense_type: 'FIJO',
     estimated_amount: 14200,
-    due_date: '2026-08-05',
-    priority: 'MEDIA',
+    due_date: `${currentYear}-${currentMonthFormatted}-05`,
+    priority: 'ALTA',
     status: 'PENDIENTE',
     actual_paid_amount: null,
     paid_at: null,
@@ -67,20 +69,35 @@ let mockExpenses = [
   },
   {
     id: 4,
-    title: 'Zapatillas Deportivas (Cuota 2/3)',
+    title: 'Factura de Gas',
+    category_id: 2,
+    category_name: 'Servicios',
+    category_icon: 'zap',
+    expense_type: 'FIJO',
+    estimated_amount: 18500,
+    due_date: '2025-05-11',
+    priority: 'ALTA',
+    status: 'PENDIENTE',
+    actual_paid_amount: null,
+    paid_at: null,
+    notes: 'Deuda de prueba mayo 2025'
+  },
+  {
+    id: 5,
+    title: 'Remera Deportiva (Cuota 1/3)',
     category_id: 3,
     category_name: 'Cuota',
     category_icon: 'credit-card',
     expense_type: 'EVENTUAL',
-    estimated_amount: 32000,
-    due_date: `${currentYear}-${currentMonthFormatted}-22`,
-    priority: 'BAJA',
+    estimated_amount: 55000,
+    due_date: `${currentYear}-${currentMonthFormatted}-18`,
+    priority: 'MEDIA',
     status: 'PENDIENTE',
     actual_paid_amount: null,
     paid_at: null,
-    installment_current: 2,
+    installment_current: 1,
     installment_total: 3,
-    notes: 'Cuota 2 de 3 con Visa'
+    notes: 'Cuota 1 de 3 ($165.000 total)'
   }
 ];
 
@@ -116,14 +133,16 @@ export async function getDashboardData(req, res) {
     }
 
     const processedExpenses = expenses.map(exp => {
-      const computedStatus = determineExpenseStatus(exp.due_date, exp.status === 'PAGADO');
+      const { status: compStatus, priority: compPriority } = determineExpenseStatusAndPriority(exp.due_date, exp.status === 'PAGADO');
       return {
         ...exp,
-        dynamic_status: computedStatus
+        dynamic_status: compStatus,
+        effective_priority: compPriority
       };
     });
 
-    const metrics = calculateCategorizedMetrics(budget, processedExpenses);
+    // Calcular métricas únicamente para el período activo (2026-08) o vencidos pasados
+    const metrics = calculateCategorizedMetrics(budget, processedExpenses, currentPeriodYM);
 
     const monthNames = [
       'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 
@@ -134,7 +153,7 @@ export async function getDashboardData(req, res) {
     res.json({
       currentPeriodName,
       metrics,
-      categories,
+      categories: categories.length > 0 ? categories : mockCategories,
       expenses: processedExpenses
     });
   } catch (error) {
@@ -144,7 +163,7 @@ export async function getDashboardData(req, res) {
 
 export async function createExpense(req, res) {
   try {
-    const { title, category_id, expense_type, estimated_amount, due_date, priority, notes, installment_current, installment_total } = req.body;
+    const { title, category_id, expense_type, estimated_amount, due_date, notes, installment_current, installment_total } = req.body;
 
     const validation = validateExpenseInput(title, estimated_amount, due_date, mockExpenses);
     if (!validation.isValid) {
@@ -153,6 +172,8 @@ export async function createExpense(req, res) {
 
     let newExpense = null;
     const typeVal = expense_type === 'EVENTUAL' ? 'EVENTUAL' : 'FIJO';
+    const catObj = mockCategories.find(c => c.id === parseInt(category_id, 10)) || mockCategories[0];
+    const { status: compStatus, priority: compPriority } = determineExpenseStatusAndPriority(due_date, false);
 
     try {
       const insertQuery = `
@@ -166,12 +187,11 @@ export async function createExpense(req, res) {
         typeVal,
         parseFloat(estimated_amount),
         due_date,
-        priority || 'MEDIA',
+        compPriority,
         notes || ''
       ]);
       newExpense = result.rows[0];
     } catch (dbErr) {
-      const catObj = mockCategories.find(c => c.id === parseInt(category_id, 10)) || mockCategories[0];
       newExpense = {
         id: Date.now(),
         title: title.trim(),
@@ -181,8 +201,10 @@ export async function createExpense(req, res) {
         expense_type: typeVal,
         estimated_amount: parseFloat(estimated_amount),
         due_date,
-        priority: priority || 'MEDIA',
+        priority: compPriority,
         status: 'PENDIENTE',
+        dynamic_status: compStatus,
+        effective_priority: compPriority,
         actual_paid_amount: null,
         paid_at: null,
         installment_current: installment_current ? parseInt(installment_current, 10) : null,
@@ -218,8 +240,8 @@ export async function payExpense(req, res) {
       return res.status(404).json({ error: 'Gasto no encontrado' });
     }
 
-    const computedStatus = determineExpenseStatus(expense.due_date, expense.status === 'PAGADO');
-    const expenseWithStatus = { ...expense, dynamic_status: computedStatus };
+    const { status: compStatus } = determineExpenseStatusAndPriority(expense.due_date, expense.status === 'PAGADO');
+    const expenseWithStatus = { ...expense, dynamic_status: compStatus };
 
     const processed = processPaymentData(expenseWithStatus, actual_paid_amount, payment_date);
 
