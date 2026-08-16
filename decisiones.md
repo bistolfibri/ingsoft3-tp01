@@ -23,7 +23,7 @@ Este documento registra de forma incremental todas las decisiones técnicas, de 
 ### Justificación de los 5 Criterios de Selección (Sección 3.3)
 
 1. **Que puedan ejecutarla hoy**: 
-   - La aplicación está desacoplada en `./backend` y `./frontend`. Cuenta con fallback en memoria para ejecutarla instantáneamente sin dependencias externas en la primera corrida, y soporte completo para PostgreSQL.
+   - La aplicación está desacoplada en `./backend` y `./frontend`. Cuenta con soporte completo para PostgreSQL y fallback en memoria.
 2. **Que conozcan los comandos de compilación y ejecución**:
    - **Backend**: `npm install` && `npm start` (o `npm run dev` en desarrollo).
    - **Frontend**: `npm install` && `npm run build` (o `npm run dev` en desarrollo).
@@ -43,6 +43,13 @@ Este documento registra de forma incremental todas las decisiones técnicas, de 
      4. Restricción en modal de pago: la fecha de pago NO puede ser posterior al día de HOY.
 5. **Que la entiendan lo suficiente para modificarla**:
    - La aplicación posee un diseño limpio en arquitectura de 3 capas (Rutas $\rightarrow$ Controladores $\rightarrow$ Servicios/Reglas) que facilita cualquier modificación en vivo requerida durante las defensas orales.
+
+### Decisiones de Contenerización e Infraestructura (Sección 3.8)
+
+- **Estructura Multi-stage**: Se diseñaron Dockerfiles de 2 etapas (`node:20-alpine` para build y final del backend; `node:20-alpine` para build y `nginx:alpine` para servidor estático del frontend). Esto redujo el tamaño de las imágenes a **200 MB** (Backend) y **93 MB** (Frontend), eliminando compiladores y dependencias de desarrollo de las imágenes finales.
+- **Estrategia de Persistencia**: Se utilizó el volumen nombrado `db_data` montado en `/var/lib/postgresql/data` para garantizar que los datos sobrevivan a reinicios del contenedor (`docker compose down` / `up -d`). Se incluyeron scripts de inicialización SQL (`schema.sql` y `seed.sql`) en `/docker-entrypoint-initdb.d` para inicializar la base de datos de manera automática.
+- **Redes y Proxy Inverso**: Nginx actúa como servidor web estático y proxy inverso redirigiendo las llamadas `/api/` hacia `http://backend:3001` mediante el DNS interno de Docker (`127.0.0.11`), eliminando cualquier problema de CORS y evitando URLs absolutas escritas en el código.
+- **Manejo de Secretos**: La contraseña de PostgreSQL se inyecta dinámicamente mediante la variable `${DB_PASSWORD}` leída desde `.env` (ignorado en `.gitignore`), proporcionando la plantilla pública `.env.example`.
 
 ---
 

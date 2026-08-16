@@ -117,17 +117,24 @@ export async function getDashboardData(req, res) {
         LEFT JOIN categories c ON e.category_id = c.id
         ORDER BY e.due_date ASC
       `);
-      expenses = expRes.rows.map(exp => ({
-        ...exp,
-        estimated_amount: parseFloat(exp.estimated_amount),
-        actual_paid_amount: exp.actual_paid_amount ? parseFloat(exp.actual_paid_amount) : null
-      }));
+      expenses = expRes.rows.map(exp => {
+        const dueDateStr = exp.due_date instanceof Date 
+          ? exp.due_date.toISOString().split('T')[0] 
+          : String(exp.due_date).split('T')[0];
+        return {
+          ...exp,
+          due_date: dueDateStr,
+          estimated_amount: parseFloat(exp.estimated_amount),
+          actual_paid_amount: exp.actual_paid_amount ? parseFloat(exp.actual_paid_amount) : null
+        };
+      });
 
       const budgetRes = await pool.query('SELECT total_budget FROM monthly_budgets ORDER BY id DESC LIMIT 1');
       if (budgetRes.rows.length > 0) {
         budget = parseFloat(budgetRes.rows[0].total_budget);
       }
     } catch (dbErr) {
+      console.error('⚠️ ERROR POSTGRESQL (getDashboardData):', dbErr.message);
       categories = mockCategories;
       expenses = mockExpenses;
     }
@@ -192,6 +199,7 @@ export async function createExpense(req, res) {
       ]);
       newExpense = result.rows[0];
     } catch (dbErr) {
+      console.error('⚠️ ERROR POSTGRESQL (createExpense):', dbErr.message);
       newExpense = {
         id: Date.now(),
         title: title.trim(),
