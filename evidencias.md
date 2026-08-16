@@ -19,3 +19,30 @@ GitHub muestra donde esta el conflicto: la version actual y la que se encuentra 
 <img width="950" height="838" alt="image" src="https://github.com/user-attachments/assets/2cec358f-d790-4d11-a725-118cae14aa25" />
 
 La release le agrega comunicación al tag v1.0.0 que marca un commit
+
+---
+
+## TP2 — Evidencias de Ejecución y Contenerización
+
+### 1. Salida de `docker compose up -d` y Sistema Funcionando
+```
+ ✔ Network finfix_default       Created
+ ✔ Volume "finfix_db_data"      Created
+ ✔ Container finfix-db-1        Healthy
+ ✔ Container finfix-backend-1   Started
+ ✔ Container finfix-frontend-1  Started
+```
+- Sistema corriendo end-to-end en `http://localhost:3000`.
+
+### 2. Prueba de Persistencia de Datos
+- **`docker compose down` / `up -d`**: Los datos persisten intactos en el volumen PostgreSQL `db_data`.
+- **`docker compose down -v`**: Destruye el volumen `db_data` e inicializa la base de datos a cero.
+
+### 3. Comparación de Tamaños de Imagen (Multi-stage vs Base)
+- **Backend (`finfix-backend:dev`)**: **200 MB** *(multi-stage node:20-alpine)*.
+- **Frontend (`finfix-frontend:dev`)**: **93 MB** *(multi-stage nginx:alpine)*.
+
+### 4. Imágenes Publicadas en GitHub Container Registry (`ghcr.io`)
+- **Backend**: `ghcr.io/bistolfibri/finfix-backend:v0.1.0` *(Visibilidad: Pública)*.
+- **Frontend**: `ghcr.io/bistolfibri/finfix-frontend:v0.1.0` *(Visibilidad: Pública)*.
+
