@@ -4,11 +4,23 @@ Este documento registra de forma incremental todas las decisiones técnicas, de 
 
 ---
 
-## 1. Selección de la Aplicación del Semestre (TP2)
+## 1. Registro del TP1 — Git Colaborativo
+
+### Análisis del Conflicto de Merge (TP1)
+- **¿Por qué Git no pudo resolver el conflicto solo?**: El conflicto ocurrió porque ambas ramas (`feature/titulo-a` y `feature/titulo-b`) nacieron del mismo commit base de `main` y modificaron la misma línea con contenidos distintos (`# Proyecto IngSoft3 - versión A` vs `# Proyecto IngSoft3 - versión B`). Al integrar la segunda rama, Git detectó dos versiones diferentes y delegó la resolución al usuario insertando los marcadores de conflicto.
+- **¿Qué tendría que haber pasado para que no apareciera?**: Trabajar de forma secuencial haciendo que la segunda rama partiera del commit de `main` actualizado tras hacer `git pull`.
+
+### Dificultades Encontradas y Soluciones (TP1)
+1. **Comando `gh` en PowerShell**: Tras instalar GitHub CLI con `winget`, la terminal arrojaba `gh no se reconoce`. Se resolvió abriendo una nueva ventana de terminal para recargar el `PATH`.
+2. **Operador `&&` en PowerShell 5.1**: Al ejecutar `git switch main && git pull`, la consola dio error de sintaxis. Se ejecutaron los comandos por separado.
+
+---
+
+## 2. TP2 — Selección de la Aplicación del Semestre y Contenedores
 
 **Aplicación seleccionada**: `FinFix` — Gestor de Obligaciones Fijas Mensuales, Servicios y Compras en Cuotas.
 
-### Justificación de los 5 Criterios de Selección ([`elegir-app.md`](elegir-app.md))
+### Justificación de los 5 Criterios de Selección (Sección 3.3)
 
 1. **Que puedan ejecutarla hoy**: 
    - La aplicación está desacoplada en `./backend` y `./frontend`. Cuenta con fallback en memoria para ejecutarla instantáneamente sin dependencias externas en la primera corrida, y soporte completo para PostgreSQL.
@@ -23,10 +35,10 @@ Este documento registra de forma incremental todas las decisiones técnicas, de 
      2. `processPaymentData`: Validación estricta de pagos. Impide pagos futuros a la fecha actual y prohíbe montos menores al total adeudado. Si está vencido permite recargo por mora.
      3. `determineExpenseStatus`: Cálculo dinámico de vencimientos (*PENDIENTE* vs *VENCIDO* vs *PRÓXIMO*) timezone-safe comparando contra la fecha actual.
      4. `calculateCategorizedMetrics`: Cálculo diferenciado de métricas entre Gastos Fijos (Alquiler/Expensas/Servicios) y Eventuales/Cuotas.
-     5. `validateExpenseInput`: Validación de integridad de entradas (monto $>0$, fecha obligatoria en rango acotado a 1 año antes/después).
+     5. `validateExpenseInput`: Validación de integridad de entradas (monto $>0$, fecha obligatoria en rango acotado).
    - **Frontend (4 Comportamientos de UI)**:
      1. Pantalla de Bienvenida Hero con botón directo *"Ver Mis Gastos y Obligaciones"*.
-     2. Lógica automatizada para la categoría **Cuota** (calcula cuota actual de N totales y proyecta automáticamente la cuota N+1 para el mes siguiente).
+     2. Lógica automatizada para la categoría **Cuota** (calcula cuota actual de N totales y proyecta la cuota N+1 para el mes siguiente).
      3. Formato explicativo de fechas completas con Año visible (ej: *"Vence 11 de Mayo de 2025"*).
      4. Restricción en modal de pago: la fecha de pago NO puede ser posterior al día de HOY.
 5. **Que la entiendan lo suficiente para modificarla**:
@@ -34,18 +46,10 @@ Este documento registra de forma incremental todas las decisiones técnicas, de 
 
 ---
 
-## 2. Decisiones de Diseño e Interfaz
-
-- **Categorías Simplificadas**: Únicamente 4 categorías oficiales: `Vivienda`, `Servicios`, `Cuota` y `Entretenimiento`.
-- **Lógica de Cuotas**: Al seleccionar `Cuota`, se solicitan los campos de cuota N de M y se autogenera la plantilla de pago.
-- **Validación de Rangos de Fechas de Pago**: El pago solo puede registrarse hasta el día de HOY (no se permiten fechas futuras de pago).
-
----
-
-## 3. Declaración de Uso de Inteligencia Artificial (Sección 6 del `README.md`)
+## 3. Declaración de Uso de Inteligencia Artificial
 
 De acuerdo a la **Sección 6 del reglamento de la cursada**:
 
-1. **Partes asistidas**: La estructura inicial del proyecto, el esquema de la base de datos y la implementación modular de las reglas de negocio fueron generadas con la asistencia del agente AI (Antigravity).
-2. **Verificación realizada**: Se probó localmente el servidor backend Express, la conectividad con las variables de entorno, y la compilación del cliente React con Vite.
-3. **Compromiso de Defensa Oral**: Toda la lógica de negocio en `backend/src/services/expenseRules.js` y el consumo de la API han sido revisados y comprendidos en su totalidad para ser expuestos y modificados en las defensas orales de P1, P2 y el Integrador.
+1. **Uso de IA**: Se utilizó asistencia de Inteligencia Artificial (Antigravity) para consultar dudas conceptuales sobre la sintaxis de Docker, PowerShell y verificar la integración del TP1 y TP2.
+2. **Verificación realizada**: Todos los comandos, capturas, decisiones y operaciones en Git/GitHub fueron ejecutados, probados y verificados manualmente en el repositorio.
+3. **Compromiso de Defensa Oral**: Toda la lógica de negocio en `backend/src/services/expenseRules.js` y la configuración de Docker son comprendidas en su totalidad para ser expuestas y modificadas en las defensas orales.
