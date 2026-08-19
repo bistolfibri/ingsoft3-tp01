@@ -9,35 +9,48 @@ Repositorio colaborativo inicial configurado con reglas de protección de rama y
 
 ---
 
-## TP2 — Pasos para levantar la aplicación con Docker Compose
+## TP2 — Guía de Ejecución y Evaluación del Sistema con Docker Compose
 
 Para ejecutar el sistema completo en una máquina limpia sin necesidad de instalar Node.js ni PostgreSQL:
 
-### 1. Clonar el repositorio y configurar variables de entorno:
+### Prueba 1: Levantar desde el Código Fuente Local
+
+#### 1. Clonar el repositorio:
+```bash
+git clone https://github.com/bistolfibri/ingsoft3-tp01.git
+cd ingsoft3-tp01
+```
+
+#### 2. Configurar variables de entorno desde la plantilla pública:
 ```bash
 cp .env.example .env
 ```
+*(En Windows CMD si no funciona cp, ejecutar: copy .env.example .env)*
 
-### 2. Levantar el sistema completo (Frontend + Backend + PostgreSQL):
+#### 3. Levantar el sistema completo (Frontend + Backend + PostgreSQL):
 ```bash
 docker compose up -d
 ```
 
-### 3. Abrir la aplicación en el navegador:
+#### 4. Abrir la aplicación en el navegador:
 Ingresá a: http://localhost:3000
 
 ---
 
-## Variantes de Ejecución (TP2)
+### Prueba 2: Levantar descargando las imágenes de la nube (GitHub Packages - ghcr.io)
 
-- Levantar desde el código fuente local:
-  ```bash
-  docker compose up -d
-  ```
-- Levantar descargando las imágenes publicadas en GitHub Packages (ghcr.io):
-  ```bash
-  docker compose -f docker-compose.registry.yml up -d
-  ```
+#### 1. Apagar los contenedores anteriores (si estaban corriendo):
+```bash
+docker compose down
+```
+
+#### 2. Levantar descargando las imágenes publicadas:
+```bash
+docker compose -f docker-compose.registry.yml up -d
+```
+
+#### 3. Abrir la aplicación en el navegador:
+Ingresá a: http://localhost:3000
 
 ---
 
@@ -45,3 +58,4 @@ Ingresá a: http://localhost:3000
 - Frontend: React + Vite servido en producción por Nginx (Puerto 3000).
 - Backend: API REST en Node.js / Express (Puerto 3001).
 - Base de Datos: PostgreSQL 16 Alpine con persistencia en volumen db_data (Puerto 5432).
+- Registry de Imágenes: ghcr.io/bistolfibri/finfix-backend:v0.1.0 y ghcr.io/bistolfibri/finfix-frontend:v0.1.0 (Visibilidad Pública).
