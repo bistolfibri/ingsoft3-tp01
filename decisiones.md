@@ -79,6 +79,8 @@ Este documento registra de forma incremental todas las decisiones técnicas, de 
 
 De acuerdo a la **Sección 6 del reglamento de la cursada**:
 
-1. **Uso de IA**: Se utilizó asistencia de Inteligencia Artificial (Antigravity) para consultar dudas conceptuales sobre la sintaxis de Docker, PowerShell, la jerarquía de GitHub Projects (v2) y verificar la integración de los TP1, TP2 y TP3.
-2. **Verificación realizada**: Todos los comandos, capturas, decisiones, jerarquías de sub-issues y Pull Requests en Git/GitHub fueron ejecutados, probados y verificados manualmente en el repositorio.
-3. **Compromiso de Defensa Oral**: Toda la lógica de negocio en `backend/src/services/expenseRules.js`, la configuración de Docker y la estructura del proyecto en GitHub Projects son comprendidas en su totalidad para ser expuestas y modificadas en las defensas orales.
+1. **Uso de IA**: Se utilizó asistencia de Inteligencia Artificial (Antigravity) para:
+   - Consultar dudas conceptuales sobre sintaxis de Docker, PowerShell y GitHub Projects (v2).
+   - Asistir en la redacción, estructuración y justificación de mensajes de commit, títulos y descripciones de Pull Requests (incluyendo las palabras clave de trazabilidad `Closes #11` y `Closes #12`), así como en el formato de Criterios de Aceptación e Issues.
+2. **Verificación realizada**: Todos los comandos, archivos de código, descripciones de Pull Requests, decisiones de arquitectura y configuraciones en Git/GitHub fueron revisados, ejecutados y verificados manualmente en el repositorio.
+3. **Compromiso de Defensa Oral**: Toda la lógica de negocio, la infraestructura de contenedores, la trazabilidad de requerimientos y las decisiones documentadas son comprendidas en su totalidad para ser expuestas y defendidas de forma autónoma ante la cátedra.
