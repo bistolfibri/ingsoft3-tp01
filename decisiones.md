@@ -53,10 +53,32 @@ Este documento registra de forma incremental todas las decisiones técnicas, de 
 
 ---
 
-## 3. Declaración de Uso de Inteligencia Artificial
+## 3. TP3 — Planificación DevOps y Trazabilidad
+
+### 1. Duración del Sprint y Justificación
+- **Duración seleccionada**: **2 semanas (14 días)**.
+- **Justificación**: Se seleccionó una iteración de 2 semanas ya que es la duración estándar recomendada en metodologías ágiles (Scrum) para equipos pequeños. Permite entregar incrementos de valor verificables alineados con el calendario de entregas de la materia sin acumular ramas desactualizadas ni generar sobrecarga en la integración continua.
+
+### 2. Límite de Trabajo en Progreso (WIP Limit) y Justificación
+- **Límite asignado**: **`2`** en la columna *In Progress*.
+- **Justificación**: Aplicando el principio Kanban de *"Empezar menos, terminar más"*, se calculó el límite mediante la regla `Integrantes + 1` (para 1 desarrollador individual: 1 + 1 = 2). El `+1` actúa como válvula de escape cuando una tarjeta queda bloqueada esperando revisión, evitando el costo del cambio excesivo de contexto (*context switching*) e impidiendo acumular inventario no terminado.
+
+### 3. Diagnóstico de la Historia Mal Escrita
+- **Historia analizada**: *"Como desarrollador quiero crear la tabla usuarios para guardar los datos"*.
+- **Diagnóstico**: La frase está mal formulada porque *"crear la tabla usuarios"* es una **tarea técnica interna de infraestructura de base de datos** y no una verdadera Historia de Usuario. No proviene del rol de un usuario final, no entrega un incremento de valor funcional observable en la interfaz y carece de la justificación de beneficio para el negocio.
+- **Reescritura correcta**: *"Como usuario quiero registrar mi cuenta con email y contraseña para acceder a mis gastos de forma personalizada."*
+
+### 4. Problemas Encontrados y Soluciones (TP3)
+1. **Permisos de GitHub CLI para Projects**: Al ejecutar `gh project create`, la consola arrojó error de scope insuficiente. Se resolvió refrescando los permisos con `gh auth refresh -s project`.
+2. **Visibilidad del Proyecto por Defecto**: Los proyectos v2 nacen en modo privado. Para garantizar la evaluación sin errores 404, se cambió la visibilidad a pública mediante `gh project edit 2 --owner "@me" --visibility PUBLIC`.
+3. **Trazabilidad Automática del Pull Request**: Se incluyó la orden `Closes #11` en la descripción del PR #15. Al mergear el PR a `main`, GitHub cerró automáticamente la Tarea 1 (#11), movió la tarjeta a la columna *Done* en el tablero de Projects y vinculó de forma permanente el commit con el requerimiento.
+
+---
+
+## 4. Declaración de Uso de Inteligencia Artificial
 
 De acuerdo a la **Sección 6 del reglamento de la cursada**:
 
-1. **Uso de IA**: Se utilizó asistencia de Inteligencia Artificial (Antigravity) para consultar dudas conceptuales sobre la sintaxis de Docker, PowerShell y verificar la integración del TP1 y TP2.
-2. **Verificación realizada**: Todos los comandos, capturas, decisiones y operaciones en Git/GitHub fueron ejecutados, probados y verificados manualmente en el repositorio.
-3. **Compromiso de Defensa Oral**: Toda la lógica de negocio en `backend/src/services/expenseRules.js` y la configuración de Docker son comprendidas en su totalidad para ser expuestas y modificadas en las defensas orales.
+1. **Uso de IA**: Se utilizó asistencia de Inteligencia Artificial (Antigravity) para consultar dudas conceptuales sobre la sintaxis de Docker, PowerShell, la jerarquía de GitHub Projects (v2) y verificar la integración de los TP1, TP2 y TP3.
+2. **Verificación realizada**: Todos los comandos, capturas, decisiones, jerarquías de sub-issues y Pull Requests en Git/GitHub fueron ejecutados, probados y verificados manualmente en el repositorio.
+3. **Compromiso de Defensa Oral**: Toda la lógica de negocio en `backend/src/services/expenseRules.js`, la configuración de Docker y la estructura del proyecto en GitHub Projects son comprendidas en su totalidad para ser expuestas y modificadas en las defensas orales.
