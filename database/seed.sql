@@ -18,3 +18,7 @@ INSERT INTO expenses (id, title, category_id, expense_type, estimated_amount, du
 (4, 'Factura de Gas', 2, 'FIJO', 18500.00, '2025-05-11', 'ALTA', 'PENDIENTE', 'Deuda de prueba mayo 2025'),
 (5, 'Remera Deportiva (Cuota 1/3)', 3, 'EVENTUAL', 55000.00, '2026-08-18', 'MEDIA', 'PENDIENTE', 'Cuota 1 de 3 ($165.000 total)')
 ON CONFLICT DO NOTHING;
+
+SELECT setval('categories_id_seq', (SELECT MAX(id) FROM categories));
+SELECT setval('expenses_id_seq', (SELECT MAX(id) FROM expenses));
+
