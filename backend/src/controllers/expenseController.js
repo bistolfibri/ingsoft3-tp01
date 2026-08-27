@@ -14,7 +14,7 @@ let mockCategories = [
   { id: 4, name: 'Entretenimiento', icon: 'tv', color: '#8B5CF6' }
 ];
 
-let mockBudget = 520000;
+let mockBudget = 950000;
 
 const currentYear = new Date().getFullYear();
 const currentMonth = new Date().getMonth() + 1; // 1-12
@@ -39,21 +39,6 @@ let mockExpenses = [
   },
   {
     id: 2,
-    title: 'Expensas Edificio',
-    category_id: 1,
-    category_name: 'Vivienda',
-    category_icon: 'home',
-    expense_type: 'FIJO',
-    estimated_amount: 45000,
-    due_date: `${currentYear}-${currentMonthFormatted}-25`,
-    priority: 'MEDIA',
-    status: 'PENDIENTE',
-    actual_paid_amount: null,
-    paid_at: null,
-    notes: 'Pago por Rapipago/VEP'
-  },
-  {
-    id: 3,
     title: 'Aguas Cordobesas',
     category_id: 2,
     category_name: 'Servicios',
@@ -68,22 +53,7 @@ let mockExpenses = [
     notes: 'Factura vencida de prueba'
   },
   {
-    id: 4,
-    title: 'Factura de Gas',
-    category_id: 2,
-    category_name: 'Servicios',
-    category_icon: 'zap',
-    expense_type: 'FIJO',
-    estimated_amount: 18500,
-    due_date: '2025-05-11',
-    priority: 'ALTA',
-    status: 'PENDIENTE',
-    actual_paid_amount: null,
-    paid_at: null,
-    notes: 'Deuda de prueba mayo 2025'
-  },
-  {
-    id: 5,
+    id: 3,
     title: 'Remera Deportiva (Cuota 1/3)',
     category_id: 3,
     category_name: 'Cuota',
