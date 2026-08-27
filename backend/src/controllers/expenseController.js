@@ -45,12 +45,12 @@ let mockExpenses = [
     category_icon: 'zap',
     expense_type: 'FIJO',
     estimated_amount: 14200,
-    due_date: `${currentYear}-${currentMonthFormatted}-05`,
-    priority: 'ALTA',
+    due_date: `${currentYear}-${currentMonthFormatted}-28`,
+    priority: 'MEDIA',
     status: 'PENDIENTE',
     actual_paid_amount: null,
     paid_at: null,
-    notes: 'Factura vencida de prueba'
+    notes: 'Factura de agua del mes (vence a fin de mes)'
   },
   {
     id: 3,
@@ -61,13 +61,13 @@ let mockExpenses = [
     expense_type: 'EVENTUAL',
     estimated_amount: 55000,
     due_date: `${currentYear}-${currentMonthFormatted}-18`,
-    priority: 'MEDIA',
-    status: 'PENDIENTE',
-    actual_paid_amount: null,
-    paid_at: null,
+    priority: 'BAJA',
+    status: 'PAGADO',
+    actual_paid_amount: 55000,
+    paid_at: new Date().toISOString(),
     installment_current: 1,
     installment_total: 3,
-    notes: 'Cuota 1 de 3 ($165.000 total)'
+    notes: 'Cuota 1 de 3 abonada a término'
   }
 ];
 
