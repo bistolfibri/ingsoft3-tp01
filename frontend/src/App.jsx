@@ -53,7 +53,7 @@ const DEFAULT_DATA = {
     totalFixedCommitted: 294200, 
     totalEventualCommitted: 55000, 
     totalCommitted: 349200, 
-    totalPaid: 0, 
+    totalPaid: 55000, 
     available: 600800, 
     percentage: 37, 
     status: 'NORMAL' 
@@ -83,12 +83,12 @@ const DEFAULT_DATA = {
       category_icon: 'zap',
       expense_type: 'FIJO',
       estimated_amount: 14200,
-      due_date: '2026-08-05',
-      priority: 'ALTA',
+      due_date: '2026-08-28',
+      priority: 'MEDIA',
       status: 'PENDIENTE',
-      dynamic_status: 'VENCIDO',
+      dynamic_status: 'PENDIENTE',
       actual_paid_amount: null,
-      notes: 'Factura vencida de prueba'
+      notes: 'Factura de agua del mes (vence a fin de mes)'
     },
     {
       id: 3,
@@ -99,12 +99,13 @@ const DEFAULT_DATA = {
       expense_type: 'EVENTUAL',
       estimated_amount: 55000,
       due_date: '2026-08-18',
-      priority: 'MEDIA',
-      status: 'PENDIENTE',
-      dynamic_status: 'PENDIENTE',
+      priority: 'BAJA',
+      status: 'PAGADO',
+      dynamic_status: 'PAGADO',
+      actual_paid_amount: 55000,
       installment_current: 1,
       installment_total: 3,
-      notes: 'Cuota 1 de 3 ($165.000 total)'
+      notes: 'Cuota 1 de 3 abonada a término'
     }
   ]
 };
