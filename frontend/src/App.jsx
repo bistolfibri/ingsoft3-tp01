@@ -49,13 +49,13 @@ const formatMoney = (val) => {
 const DEFAULT_DATA = {
   currentPeriodName: 'Agosto 2026',
   metrics: { 
-    budget: 520000, 
-    totalFixedCommitted: 325000, 
+    budget: 950000, 
+    totalFixedCommitted: 294200, 
     totalEventualCommitted: 55000, 
-    totalCommitted: 380000, 
-    totalPaid: 14200, 
-    available: 140000, 
-    percentage: 73, 
+    totalCommitted: 349200, 
+    totalPaid: 0, 
+    available: 600800, 
+    percentage: 37, 
     status: 'NORMAL' 
   },
   categories: DEFAULT_CATEGORIES,
@@ -77,21 +77,6 @@ const DEFAULT_DATA = {
     },
     {
       id: 2,
-      title: 'Expensas Edificio',
-      category_id: 1,
-      category_name: 'Vivienda',
-      category_icon: 'home',
-      expense_type: 'FIJO',
-      estimated_amount: 45000,
-      due_date: '2026-08-25',
-      priority: 'MEDIA',
-      status: 'PENDIENTE',
-      dynamic_status: 'PENDIENTE',
-      actual_paid_amount: null,
-      notes: 'Pago por Rapipago/VEP'
-    },
-    {
-      id: 3,
       title: 'Aguas Cordobesas',
       category_id: 2,
       category_name: 'Servicios',
@@ -106,21 +91,7 @@ const DEFAULT_DATA = {
       notes: 'Factura vencida de prueba'
     },
     {
-      id: 4,
-      title: 'Factura de Gas',
-      category_id: 2,
-      category_name: 'Servicios',
-      category_icon: 'zap',
-      expense_type: 'FIJO',
-      estimated_amount: 18500,
-      due_date: '2025-05-11',
-      priority: 'ALTA',
-      status: 'PENDIENTE',
-      actual_paid_amount: null,
-      notes: 'Deuda de prueba mayo 2025'
-    },
-    {
-      id: 5,
+      id: 3,
       title: 'Remera Deportiva (Cuota 1/3)',
       category_id: 3,
       category_name: 'Cuota',
