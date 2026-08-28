@@ -2,9 +2,9 @@ name: CI
 
 on:
   pull_request:
-    branches: [main]      # Dispara en cada PR hacia main para verificar ANTES del merge
+    branches: [main]
   push:
-    branches: [main]      # Dispara al mergear a main para actualizar el badge
+    branches: [main]
 
 jobs:
   build-backend:
@@ -18,10 +18,38 @@ jobs:
       - name: Bajar el código al runner
         uses: actions/checkout@v4
 
+      - name: Preparar el constructor que sabe cachear
+        uses: docker/setup-buildx-action@v4
+
       - name: Construir la imagen del backend
         uses: docker/build-push-action@v7
         with:
-          context: ./backend          # Carpeta donde vive el Dockerfile de backend
-          push: false                 # Solo verificamos que compila (no publicamos la imagen aún)
-          tags: backend:ci            # Etiqueta temporal dentro de la máquina virtual
+          context: ./backend
+          push: false
+          tags: backend:ci
+          cache-from: type=gha,scope=backend
+          cache-to: type=gha,mode=max,scope=backend
+
+  build-frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Qué estamos verificando
+        env:
+          RAMA: ${{ github.head_ref || github.ref_name }}
+        run: echo "Rama $RAMA · commit $GITHUB_SHA"
+
+      - name: Bajar el código al runner
+        uses: actions/checkout@v4
+
+      - name: Preparar el constructor que sabe cachear
+        uses: docker/setup-buildx-action@v4
+
+      - name: Construir la imagen del frontend
+        uses: docker/build-push-action@v7
+        with:
+          context: ./frontend
+          push: false
+          tags: frontend:ci
+          cache-from: type=gha,scope=frontend
+          cache-to: type=gha,mode=max,scope=frontend
           
