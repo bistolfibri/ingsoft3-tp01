@@ -1,3 +1,5 @@
+[![CI](https://github.com/bistolfibri/ingsoft3-tp01/actions/workflows/ci.yml/badge.svg)](https://github.com/bistolfibri/ingsoft3-tp01/actions/workflows/ci.yml)
+
 # ingsoft3-tp01 — FinFix (Sistema de Control de Gastos)
 
 Proyecto desarrollado para la materia Ingeniería del Software III (UCC 2026).

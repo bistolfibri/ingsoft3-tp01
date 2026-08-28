@@ -84,3 +84,27 @@ De acuerdo a la **Sección 6 del reglamento de la cursada**:
    - Asistir en la redacción, estructuración y justificación de mensajes de commit, títulos y descripciones de Pull Requests (incluyendo las palabras clave de trazabilidad `Closes #11` y `Closes #12`), así como en el formato de Criterios de Aceptación e Issues.
 2. **Verificación realizada**: Todos los comandos, archivos de código, descripciones de Pull Requests, decisiones de arquitectura y configuraciones en Git/GitHub fueron revisados, ejecutados y verificados manualmente en el repositorio.
 3. **Compromiso de Defensa Oral**: Toda la lógica de negocio, la infraestructura de contenedores, la trazabilidad de requerimientos y las decisiones documentadas son comprendidas en su totalidad para ser expuestas y defendidas de forma autónoma ante la cátedra.
+
+---
+
+## 4. TP4 — Integración Continua (CI: Pipelines as Code)
+
+### 1. Estructura elegida del Pipeline
+- **Decisión**: Se estructuró el workflow `.github/workflows/ci.yml` dividiendo la compilación en dos Jobs independientes y paralelos: `build-backend` y `build-frontend`.
+- **Justificación**: Al separar el backend y el frontend en jobs independientes, GitHub Actions les asigna máquinas virtuales distintas simultáneamente, reduciendo el tiempo total de espera de compilación a la mitad.
+
+### 2. Caché de Capas y Resiliencia
+- **Qué se cachea**: Se utilizó `docker/setup-buildx-action` y `docker/build-push-action` con `cache-from` y `cache-to` de tipo `gha` (`GitHub Actions Cache`). Se configuró un `scope` independiente (`scope=backend` y `scope=frontend`) para evitar que los jobs pisen sus capas.
+- **Comportamiento sin Caché**: El caché es únicamente una optimización de velocidad. Si el almacenamiento de caché se limpia o desaparece, el pipeline compila todas las capas desde cero tardando unos segundos más, pero funciona exactamente igual sin fallar.
+
+### 3. Uso de los Dockerfiles del TP2 en el Pipeline
+- **Justificación**: El pipeline utiliza las instrucciones de los Dockerfiles creados en el TP2 en lugar de ejecutar comandos aislados de compilación (`npm run build`). Esto garantiza una **única fuente de verdad** en el proceso de build, asegurando que el pipeline verifique exactamente la misma imagen de contenedor que se desplegará en producción.
+
+### 4. Problemas Encontrados y Soluciones (TP4)
+1. **Solapamiento de Caché entre Jobs**: Sin la directiva `scope` explícita, los jobs paralelos compartían el mismo namespace de caché y sobreescribían sus capas. Se resolvió asignando `scope=backend` y `scope=frontend`.
+2. **Sincronización de Secuencia SQL en Postgres**: Al insertar datos de prueba con IDs explícitos en `seed.sql`, la secuencia autoincremental de Postgres no avanzaba, provocando fallas de clave duplicada al crear nuevos gastos. Se resolvió agregando `SELECT setval()` al finalizar las inserciones iniciales.
+
+### 5. Declaración de Uso de Inteligencia Artificial
+- **Uso de IA**: Se utilizó asistencia de IA (Antigravity) para consultar dudas conceptuales sobre la sintaxis de GitHub Actions YAML, el manejo de `buildx` con `type=gha,scope=...` y la redacción sobria de commits y descripciones de Pull Requests.
+- **Verificación realizada**: Todos los pipelines, reglas de protección, configuraciones de Gate en `main`, archivos de código y ejecuciones fueron revisados y probados manualmente en el repositorio.
+
