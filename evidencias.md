@@ -1,3 +1,4 @@
+<img width="601" height="161" alt="Captura de pantalla 2026-08-31 230826" src="https://github.com/user-attachments/assets/19eaeefb-ce8e-4337-be23-6ec776bb9adf" />
 # 📋 Evidencias de Ejecución y Pruebas — FinFix
 
 Este documento recopila las evidencias de ejecución, pruebas de seguridad, orquestación y persistencia de datos de la aplicación **FinFix**.
@@ -72,10 +73,13 @@ docker compose up -d
 - Creación de volumen `finfix_db_data`
 - Levantamiento de contenedores: `db` (PostgreSQL), `backend` (Node.js), `frontend` (React)
 
+<img width="601" height="161" alt="Captura de pantalla 2026-08-31 230826" src="https://github.com/user-attachments/assets/f0484376-8675-4102-8a64-06ce3bb32ac6" />
+
 **Verificación del estado:**
 ```bash
 docker compose ps
 ```
+<img width="1375" height="120" alt="Captura de pantalla 2026-08-31 230848" src="https://github.com/user-attachments/assets/d306e2a7-d89c-4556-9b09-7b138ded0cdc" />
 
 - La base de datos `db` ejecuta el comando de verificación `pg_isready`
 - Gracias a `depends_on` con `condition: service_healthy`, el backend aguarda a que PostgreSQL esté listo antes de iniciar
@@ -92,6 +96,8 @@ docker compose ps
 
 1. **Registrar obligación:** Se ingresó "Epec" por $15.000 desde la interfaz web
 
+<img width="1845" height="826" alt="Captura de pantalla 2026-08-31 231515" src="https://github.com/user-attachments/assets/c643d56b-19f6-4fd6-9fb1-b3a1771e9b35" />
+
 2. **Detener infraestructura:**
    ```bash
    docker compose down
@@ -101,8 +107,13 @@ docker compose ps
    ```bash
    docker compose up -d
    ```
+   <img width="723" height="346" alt="Captura de pantalla 2026-08-31 231732" src="https://github.com/user-attachments/assets/5102b9b5-1625-44ba-bf32-f14e449b1829" />
+
 
 4. **Verificar persistencia:** Al acceder nuevamente a **http://localhost:3000**, la obligación "Epec" se mantiene intacta en la pantalla
+
+   <img width="1587" height="807" alt="Captura de pantalla 2026-08-31 231746" src="https://github.com/user-attachments/assets/202b9dd3-55c6-45e7-9fb2-72d74e09906f" />
+
 
 **Conclusión:** El volumen nombrado `finfix_db_data` conserva la información almacenada en el disco duro host incluso cuando los contenedores son destruidos. Esto demuestra que `docker compose down` detiene y elimina los contenedores pero respeta los volúmenes persistentes, permitiendo recuperar toda la información sin reconstruir la base de datos. Este comportamiento es crítico en ambientes de desarrollo donde queremos preservar datos entre ciclos de desarrollo sin perder cambios.
 
