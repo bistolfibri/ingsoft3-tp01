@@ -1,4 +1,3 @@
-<img width="601" height="161" alt="Captura de pantalla 2026-08-31 230826" src="https://github.com/user-attachments/assets/19eaeefb-ce8e-4337-be23-6ec776bb9adf" />
 # 📋 Evidencias de Ejecución y Pruebas — FinFix
 
 Este documento recopila las evidencias de ejecución, pruebas de seguridad, orquestación y persistencia de datos de la aplicación **FinFix**.
