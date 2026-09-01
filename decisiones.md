@@ -1,27 +1,32 @@
 # Registro de Decisiones de Arquitectura — FinFix
 
-Este documento registra de forma incremental todas las decisiones técnicas, de arquitectura y de infraestructura tomadas durante la cursada de **Ingeniería del Software III (UCC 2026)**.
+Este documento registra de forma incremental todas las decisiones técnicas, de arquitectura, planificación e infraestructura tomadas durante la cursada de **Ingeniería del Software III (UCC 2026)** para la aplicación **FinFix**.
 
 ---
 
-## 1. Registro del TP1 — Git Colaborativo
+## TP1 — Control de Versiones y Git Colaborativo
 
-### Análisis del Conflicto de Merge (TP1)
-- **¿Por qué Git no pudo resolver el conflicto solo?**: El conflicto ocurrió porque ambas ramas (`feature/titulo-a` y `feature/titulo-b`) nacieron del mismo commit base de `main` y modificaron la misma línea con contenidos distintos (`# Proyecto IngSoft3 - versión A` vs `# Proyecto IngSoft3 - versión B`). Al integrar la segunda rama, Git detectó dos versiones diferentes y delegó la resolución al usuario insertando los marcadores de conflicto.
-- **¿Qué tendría que haber pasado para que no apareciera?**: Trabajar de forma secuencial haciendo que la segunda rama partiera del commit de `main` actualizado tras hacer `git pull`.
+### 1. Análisis del Conflicto de Merge
+- **¿Por qué Git no pudo resolver el conflicto solo?**: Git resuelve los merges automáticamente cuando los cambios tocan partes diferentes del archivo. En el PR #3, las ramas `feature/titulo-a` y `feature/titulo-b` modificaron exactamente la misma línea 1 del archivo `README.md` habiendo partido del mismo commit base de `main`. Git no posee criterio de negocio para decidir si la versión correcta era la "A" o la "B", por lo que detuvo el merge e insertó los marcadores de conflicto (`<<<<<<<`, `=======`, `>>>>>>>`) para exigir una resolución manual.
+- **¿Qué tendría que haber pasado para evitarlo?**: 
+  - Que las ramas tocaran líneas distintas del archivo.
+  - Que la rama `feature/titulo-b` se hubiera creado secuencialmente **después** de mergear la rama A, habiendo actualizado su base local con `git pull origin main`.
 
-### Dificultades Encontradas y Soluciones (TP1)
-1. **Comando `gh` en PowerShell**: Tras instalar GitHub CLI con `winget`, la terminal arrojaba `gh no se reconoce`. Se resolvió abriendo una nueva ventana de terminal para recargar el `PATH`.
-2. **Operador `&&` en PowerShell 5.1**: Al ejecutar `git switch main && git pull`, la consola dio error de sintaxis. Se ejecutaron los comandos por separado.
+### 2. Dificultades Encontradas y Soluciones
+- **Error del comando `gh` en PowerShell**: Tras instalar GitHub CLI (`gh`), la terminal arrojaba `gh: el término no se reconoce`. Se resolvió cerrando y reabriendo la ventana de PowerShell para recargar las variables del sistema (`PATH`).
+- **Operador `&&` no soportado en PowerShell 5.1**: Al intentar concatenar comandos como `git checkout main && git pull`, PowerShell 5.1 arrojó error de sintaxis. Se resolvió ejecutando las instrucciones en líneas separadas o utilizando `;`.
 
+### 3. Declaración de Uso de Inteligencia Artificial 
+- **Uso de IA**: Se utilizó asistencia de IA como guía para traducir los requerimientos del TP1 en comandos concretos de consola (Git y GitHub CLI), comprender las convenciones de *Conventional Commits* (`feat:`, `fix:`, `docs:`) y estructurar los mensajes de commit.
+- **Verificación realizada**: Todos los comandos de Git, creaciones de ramas, resoluciones de conflictos y tags fueron ejecutados y probados manualmente en la terminal local y verificados en la web de GitHub.
+  
 ---
 
-## 2. TP2 — Selección de la Aplicación del Semestre y Contenedores
+## TP2 — Selección de la Aplicación y Contenerización
 
-**Aplicación seleccionada**: `FinFix` — Gestor de Obligaciones Fijas Mensuales, Servicios y Compras en Cuotas.
+**Aplicación seleccionada**: `FinFix` — Sistema web de Control de Gastos Mensuales y Obligaciones Fijas.
 
-### Justificación de los 5 Criterios de Selección (Sección 3.3)
-
+### 1. Justificación de los 5 Criterios de Selección
 1. **Que puedan ejecutarla hoy**: 
    - La aplicación está desacoplada en `./backend` y `./frontend`. Cuenta con soporte completo para PostgreSQL y fallback en memoria.
 2. **Que conozcan los comandos de compilación y ejecución**:
@@ -29,82 +34,74 @@ Este documento registra de forma incremental todas las decisiones técnicas, de 
    - **Frontend**: `npm install` && `npm run build` (o `npm run dev` en desarrollo).
 3. **Que la conexión a la base sea parametrizable por variables de entorno**:
    - Toda la conexión a la base de datos se configura centralizadamente en `backend/src/config/db.js` leyendo las variables de entorno `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER` y `DB_PASSWORD` provenientes de `.env` o del entorno Docker.
-4. **Que tenga lógica para testear (TP5)**:
-   - **Backend (Reglas de Negocio Puras)**:
-     1. `isDuplicateExpenseTitle`: Detección e impedimento de creación de obligaciones con conceptos duplicados.
-     2. `processPaymentData`: Validación estricta de pagos. Impide pagos futuros a la fecha actual y prohíbe montos menores al total adeudado. Si está vencido permite recargo por mora.
-     3. `determineExpenseStatus`: Cálculo dinámico de vencimientos (*PENDIENTE* vs *VENCIDO* vs *PRÓXIMO*) timezone-safe comparando contra la fecha actual.
-     4. `calculateCategorizedMetrics`: Cálculo diferenciado de métricas entre Gastos Fijos (Alquiler/Expensas/Servicios) y Eventuales/Cuotas.
-     5. `validateExpenseInput`: Validación de integridad de entradas (monto $>0$, fecha obligatoria en rango acotado).
-   - **Frontend (4 Comportamientos de UI)**:
-     1. Pantalla de Bienvenida Hero con botón directo *"Ver Mis Gastos y Obligaciones"*.
-     2. Lógica automatizada para la categoría **Cuota** (calcula cuota actual de N totales y proyecta la cuota N+1 para el mes siguiente).
-     3. Formato explicativo de fechas completas con Año visible (ej: *"Vence 11 de Mayo de 2025"*).
-     4. Restricción en modal de pago: la fecha de pago NO puede ser posterior al día de HOY.
-5. **Que la entiendan lo suficiente para modificarla**:
-   - La aplicación posee un diseño limpio en arquitectura de 3 capas (Rutas $\rightarrow$ Controladores $\rightarrow$ Servicios/Reglas) que facilita cualquier modificación en vivo requerida durante las defensas orales.
+4. **Lógica desacoplada lista para testear (TP5)**:
+   - **Backend (Reglas Puras)**: `determineExpenseStatusAndPriority` (cálculo de vencimientos), `processPaymentData` (validación de pagos y recargos por mora), `isDuplicateExpenseTitle` y `calculateCategorizedMetrics`.
+   - **Frontend (UI)**: Manejo automatizado de cuotas (cálculo de cuota N+1), restricción de pagos futuros y formato de fechas completo.
+5. **Comprensión suficiente para modificarla en vivo**: Estructurada en arquitectura limpia de 3 capas (Rutas $\rightarrow$ Controladores $\rightarrow$ Servicios/Reglas), permitiendo aplicar modificaciones rápidas durante la defensa oral.
 
-### Decisiones de Contenerización e Infraestructura (Sección 3.8)
+### 2. Decisiones de Contenerización e Infraestructura
+- **Imágenes base y Multi-stage**: Se diseñaron Dockerfiles multi-stage (2 etapas). El backend usa `node:20-alpine` (reduciendo la imagen a **200 MB** vs >1 GB de la base estándar). El frontend compila React en la etapa 1 y sirve los archivos estáticos en la etapa 2 utilizando **`nginx:alpine` (93 MB)**, eliminando Node.js de la imagen final de producción.
+- **Estrategia de Persistencia**: Se utilizó el volumen nombrado `db_data` montado en `/var/lib/postgresql/data`. Esto garantiza que los datos survivan a reinicios del contenedor (`docker compose down`). Los scripts `schema.sql` y `seed.sql` inicializan la estructura relacional y los datos de prueba de forma automática.
+- **Redes y Proxy Inverso**: Nginx actúa como servidor web estático y proxy inverso reeditando las llamadas `/api/` hacia `http://backend:3001` mediante el DNS interno de Docker (`127.0.0.11`), unificando el origen y eliminando bloqueos de CORS.
+- **Gestión de Secretos**: La contraseña de PostgreSQL se lee mediante la variable `${DB_PASSWORD}` desde el archivo local `.env` (incluido en `.gitignore`). Se versiona la plantilla pública `.env.example` con valores de muestra.
 
-- **Estructura Multi-stage**: Se diseñaron Dockerfiles de 2 etapas (`node:20-alpine` para build y final del backend; `node:20-alpine` para build y `nginx:alpine` para servidor estático del frontend). Esto redujo el tamaño de las imágenes a **200 MB** (Backend) y **93 MB** (Frontend), eliminando compiladores y dependencias de desarrollo de las imágenes finales.
-- **Estrategia de Persistencia**: Se utilizó el volumen nombrado `db_data` montado en `/var/lib/postgresql/data` para garantizar que los datos sobrevivan a reinicios del contenedor (`docker compose down` / `up -d`). Se incluyeron scripts de inicialización SQL (`schema.sql` y `seed.sql`) en `/docker-entrypoint-initdb.d` para inicializar la base de datos de manera automática.
-- **Redes y Proxy Inverso**: Nginx actúa como servidor web estático y proxy inverso redirigiendo las llamadas `/api/` hacia `http://backend:3001` mediante el DNS interno de Docker (`127.0.0.11`), eliminando cualquier problema de CORS y evitando URLs absolutas escritas en el código.
-- **Manejo de Secretos**: La contraseña de PostgreSQL se inyecta dinámicamente mediante la variable `${DB_PASSWORD}` leída desde `.env` (ignorado en `.gitignore`), proporcionando la plantilla pública `.env.example`.
+### 3. Dificultades Encontradas y Soluciones 
+- **Falla de conexión del backend al arrancar PostgreSQL**: El backend intentaba conectarse antes de que PostgreSQL terminara de inicializar sus archivos internos. Se resolvió agregando un `healthcheck` con `pg_isready` en el servicio `db` y configurando `depends_on` con `condition: service_healthy` en el backend.
+- **Divergencia de Zona Horaria (Timezone)**: Docker utiliza la hora UTC por defecto, provocando desfasajes de fecha a última hora del día respecto al navegador local. Se solucionó asegurando el formateo de fechas ISO safe en las consultas del controlador.
 
+### 4. Declaración de Uso de Inteligencia Artificial 
+- **Uso de IA**: Se consultó asistencia de IA para estructurar las dos etapas de los Dockerfiles multi-stage, configurar las reglas de proxy inverso en `nginx.conf` y entender el funcionamiento de la red interna de Docker Compose.
+- **Verificación realizada**: Se compilaron y probaron las imágenes localmente, se verificaron los pesos mediante `docker images`, se confirmó la persistencia con `docker compose down` / `up -d` y se verificó la descarga desatendida desde GHCR con `docker-compose.registry.yml`.
+  
 ---
 
-## 3. TP3 — Planificación DevOps y Trazabilidad
+## TP3 — Planificación DevOps y Trazabilidad
 
 ### 1. Duración del Sprint y Justificación
-- **Duración seleccionada**: **2 semanas (14 días)**.
-- **Justificación**: Se seleccionó una iteración de 2 semanas ya que es la duración estándar recomendada en metodologías ágiles (Scrum) para equipos pequeños. Permite entregar incrementos de valor verificables alineados con el calendario de entregas de la materia sin acumular ramas desactualizadas ni generar sobrecarga en la integración continua.
-
+- **Duración elegida**: **2 semanas (14 días)**.
+- **Justificación**: Se seleccionó una iteración de 2 semanas por ser el estándar recomendado en Scrum para equipos pequeños. Permite entregar incrementos funcionales verificables alineados con las entregas de la materia sin acumular ramas desactualizadas en Git.
+  
 ### 2. Límite de Trabajo en Progreso (WIP Limit) y Justificación
 - **Límite asignado**: **`2`** en la columna *In Progress*.
-- **Justificación**: Aplicando el principio Kanban de *"Empezar menos, terminar más"*, se calculó el límite mediante la regla `Integrantes + 1` (para 1 desarrollador individual: 1 + 1 = 2). El `+1` actúa como válvula de escape cuando una tarjeta queda bloqueada esperando revisión, evitando el costo del cambio excesivo de contexto (*context switching*) e impidiendo acumular inventario no terminado.
-
+- **Justificación**: Aplicando el principio Kanban de *"Empezar menos, terminar más"*, se definió mediante la regla `Integrantes + 1` (para 1 desarrollador: 1 + 1 = 2). El `+1` actúa como válvula de escape si una tarea queda bloqueada esperando revisión, evitando el costo del cambio de contexto (*context switching*).
+  
 ### 3. Diagnóstico de la Historia Mal Escrita
 - **Historia analizada**: *"Como desarrollador quiero crear la tabla usuarios para guardar los datos"*.
-- **Diagnóstico**: La frase está mal formulada porque *"crear la tabla usuarios"* es una **tarea técnica interna de infraestructura de base de datos** y no una verdadera Historia de Usuario. No proviene del rol de un usuario final, no entrega un incremento de valor funcional observable en la interfaz y carece de la justificación de beneficio para el negocio.
+- **Diagnóstico**: Está mal escrita porque *"crear la tabla usuarios"* es una **tarea técnica de infraestructura de base de datos** disfrazada de historia. No proviene de un usuario final, no entrega un beneficio funcional observable y carece de valor de negocio explícito.
 - **Reescritura correcta**: *"Como usuario quiero registrar mi cuenta con email y contraseña para acceder a mis gastos de forma personalizada."*
-
-### 4. Problemas Encontrados y Soluciones (TP3)
-1. **Permisos de GitHub CLI para Projects**: Al ejecutar `gh project create`, la consola arrojó error de scope insuficiente. Se resolvió refrescando los permisos con `gh auth refresh -s project`.
-2. **Visibilidad del Proyecto por Defecto**: Los proyectos v2 nacen en modo privado. Para garantizar la evaluación sin errores 404, se cambió la visibilidad a pública mediante `gh project edit 2 --owner "@me" --visibility PUBLIC`.
-3. **Trazabilidad Automática del Pull Request**: Se incluyó la orden `Closes #11` en la descripción del PR #15. Al mergear el PR a `main`, GitHub cerró automáticamente la Tarea 1 (#11), movió la tarjeta a la columna *Done* en el tablero de Projects y vinculó de forma permanente el commit con el requerimiento.
-
----
-
-## 4. Declaración de Uso de Inteligencia Artificial
-
-De acuerdo a la **Sección 6 del reglamento de la cursada**:
-
-1. **Uso de IA**: Se utilizó asistencia de Inteligencia Artificial (Antigravity) para:
-   - Consultar dudas conceptuales sobre sintaxis de Docker, PowerShell y GitHub Projects (v2).
-   - Asistir en la redacción, estructuración y justificación de mensajes de commit, títulos y descripciones de Pull Requests (incluyendo las palabras clave de trazabilidad `Closes #11` y `Closes #12`), así como en el formato de Criterios de Aceptación e Issues.
-2. **Verificación realizada**: Todos los comandos, archivos de código, descripciones de Pull Requests, decisiones de arquitectura y configuraciones en Git/GitHub fueron revisados, ejecutados y verificados manualmente en el repositorio.
-3. **Compromiso de Defensa Oral**: Toda la lógica de negocio, la infraestructura de contenedores, la trazabilidad de requerimientos y las decisiones documentadas son comprendidas en su totalidad para ser expuestas y defendidas de forma autónoma ante la cátedra.
+  
+### 4. Dificultades Encontradas y Soluciones 
+- **Permisos de GitHub CLI para Projects v2**: El comando `gh project create` arrojó error de permisos. Se resolvió refrescando la autenticación mediante `gh auth refresh -s project`.
+- **Visibilidad del Proyecto en modo Privado**: Los tableros nacen en privado por defecto. Para evitar errores 404 en la evaluación, se cambió la visibilidad a pública en la configuración de GitHub Projects (`Settings -> Visibility -> Public`).
+  
+### 5. Declaración de Uso de Inteligencia Artificial 
+- **Uso de IA**: Se utilizó IA para consultar la sintaxis de enlace automático en Pull Requests (`Closes #N`), comprender la diferencia entre Criterios de Aceptación y Definition of Done, y estructurar la jerarquía de issues (Épica $\rightarrow$ Historia $\rightarrow$ Tarea).
+- **Verificación realizada**: Se crearon manualmente los issues en el repositorio, se vincularon como sub-issues en la web, se configuró el tablero y se comprobó que el PR #15 movió automáticamente la tarjeta a la columna *Done*.
 
 ---
 
-## 4. TP4 — Integración Continua (CI: Pipelines as Code)
+## TP4 — Integración Continua (CI: Pipelines as Code)
 
 ### 1. Estructura elegida del Pipeline
-- **Decisión**: Se estructuró el workflow `.github/workflows/ci.yml` dividiendo la compilación en dos Jobs independientes y paralelos: `build-backend` y `build-frontend`.
-- **Justificación**: Al separar el backend y el frontend en jobs independientes, GitHub Actions les asigna máquinas virtuales distintas simultáneamente, reduciendo el tiempo total de espera de compilación a la mitad.
-
-### 2. Caché de Capas y Resiliencia
-- **Qué se cachea**: Se utilizó `docker/setup-buildx-action` y `docker/build-push-action` con `cache-from` y `cache-to` de tipo `gha` (`GitHub Actions Cache`). Se configuró un `scope` independiente (`scope=backend` y `scope=frontend`) para evitar que los jobs pisen sus capas.
-- **Comportamiento sin Caché**: El caché es únicamente una optimización de velocidad. Si el almacenamiento de caché se limpia o desaparece, el pipeline compila todas las capas desde cero tardando unos segundos más, pero funciona exactamente igual sin fallar.
-
+- **Estructura**: Dos Jobs independientes y paralelos: `build-backend` y `build-frontend`.
+- **Justificación**: Al no tener dependencia entre sí (`needs:`), GitHub Actions ejecuta los dos jobs en máquinas virtuales runner distintas simultáneamente, reduciendo el tiempo total de compilación a la mitad.
+  
+### 2. Estrategia de Caché de Capas y Resiliencia
+- **Caché**: Se configuró `docker/setup-buildx-action` y `docker/build-push-action` usando `cache-from` y `cache-to` con `type=gha` (GitHub Actions Cache) y `scope` aislado (`scope=backend` y `scope=frontend`) para evitar que los jobs sobreescriban sus capas.
+- **Resiliencia sin Caché**: El caché es una optimización efímera de velocidad. Si el almacenamiento de caché se limpia o borra, el pipeline compila todas las capas desde cero tardando unos segundos más, pero **funciona exactamente igual sin fallar**.
+  
 ### 3. Uso de los Dockerfiles del TP2 en el Pipeline
-- **Justificación**: El pipeline utiliza las instrucciones de los Dockerfiles creados en el TP2 en lugar de ejecutar comandos aislados de compilación (`npm run build`). Esto garantiza una **única fuente de verdad** en el proceso de build, asegurando que el pipeline verifique exactamente la misma imagen de contenedor que se desplegará en producción.
-
-### 4. Problemas Encontrados y Soluciones (TP4)
-1. **Solapamiento de Caché entre Jobs**: Sin la directiva `scope` explícita, los jobs paralelos compartían el mismo namespace de caché y sobreescribían sus capas. Se resolvió asignando `scope=backend` y `scope=frontend`.
-2. **Sincronización de Secuencia SQL en Postgres**: Al insertar datos de prueba con IDs explícitos en `seed.sql`, la secuencia autoincremental de Postgres no avanzaba, provocando fallas de clave duplicada al crear nuevos gastos. Se resolvió agregando `SELECT setval()` al finalizar las inserciones iniciales.
-
-### 5. Declaración de Uso de Inteligencia Artificial
-- **Uso de IA**: Se utilizó asistencia de IA (Antigravity) para consultar dudas conceptuales sobre la sintaxis de GitHub Actions YAML, el manejo de `buildx` con `type=gha,scope=...` y la redacción sobria de commits y descripciones de Pull Requests.
-- **Verificación realizada**: Todos los pipelines, reglas de protección, configuraciones de Gate en `main`, archivos de código y ejecuciones fueron revisados y probados manualmente en el repositorio.
-
+- **Justificación**: El pipeline compila utilizando los mismos Dockerfiles del TP2 en lugar de ejecutar comandos aislados de compilación (`npm run build`). Esto garantiza una **única fuente de verdad**, asegurando que el CI verifique exactamente la misma receta de contenedor que luego se desplegará en producción.
+  
+### 4. Demostración de Freno del Gate (PR #22)
+- **Prueba intencional**: En la rama `feature/demo-gate-freno` se inyectó una falla de sintaxis intencional en `expenseController.js` y se abrió el PR #22.
+- **Freno del Gate**: El job `build-backend` falló en **ROJO**, y GitHub bloqueó automáticamente el botón de merge debido a la regla de protección `required_status_checks` con `strict: true`.
+- **Resolución**: Se subió el commit de corrección, el job volvió a correr en **VERDE** y el botón de merge se destrabó, permitiendo completar la fusión.
+  
+### 5. Dificultades Encontradas y Soluciones 
+- **Solapamiento de Caché entre Jobs Paralelos**: Inicialmente los dos jobs pisaban sus capas de caché en el runner. Se resolvió asignando nombres de `scope` independientes (`scope=backend` y `scope=frontend`).
+- **Sincronización de Secuencias autoincrementales en PostgreSQL**: Al insertar registros de prueba con IDs fijos en `seed.sql`, la secuencia de Postgres no avanzaba. Se resolvió agregando `SELECT setval()` al final del script SQL.
+  
+### 6. Declaración de Uso de Inteligencia Artificial 
+- **Uso de IA**: Se utilizó asistencia de IA para consultar la sintaxis de GitHub Actions YAML, la directiva `buildx` con `type=gha,scope=...` y los parámetros de la API de GitHub para configurar los Required Status Checks.
+- **Verificación realizada**: Se probó el pipeline en Pull Requests reales, se forzó y corrigió la falla en el PR #22, se verificó la palabra `CACHED` en los logs de la segunda corrida y se confirmó que el Status Badge en el `README.md` refleja el estado de `main`.
