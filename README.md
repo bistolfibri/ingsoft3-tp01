@@ -1,63 +1,138 @@
 [![CI](https://github.com/bistolfibri/ingsoft3-tp01/actions/workflows/ci.yml/badge.svg)](https://github.com/bistolfibri/ingsoft3-tp01/actions/workflows/ci.yml)
 
-# ingsoft3-tp01 — FinFix (Sistema de Control de Gastos)
-
-Proyecto desarrollado para la materia Ingeniería del Software III (UCC 2026).
-
----
-
-## TP1 — Git Colaborativo
-Repositorio colaborativo inicial configurado con reglas de protección de rama y release tag v1.0.0.
+# FinFix — Control de Gastos Mensuales y Obligaciones
+Aplicación web para la gestión de obligaciones fijas mensuales, servicios y compras con cálculo dinámico de vencimientos y recargos por demora.
 
 ---
 
-## TP2 — Guía de Ejecución y Evaluación del Sistema con Docker Compose
+## Tabla de Contenidos
 
-Para ejecutar el sistema completo en una máquina limpia sin necesidad de instalar Node.js ni PostgreSQL:
-
-### Prueba 1: Levantar desde el Código Fuente Local
-
-#### 1. Clonar el repositorio:
-```bash
-git clone https://github.com/bistolfibri/ingsoft3-tp01.git
-cd ingsoft3-tp01
-```
-
-#### 2. Configurar variables de entorno desde la plantilla pública:
-```bash
-cp .env.example .env
-```
-*(En Windows CMD si no funciona cp, ejecutar: copy .env.example .env)*
-
-#### 3. Levantar el sistema completo (Frontend + Backend + PostgreSQL):
-```bash
-docker compose up -d
-```
-
-#### 4. Abrir la aplicación en el navegador:
-Ingresá a: http://localhost:3000
+- [Descripción](#descripción)
+- [Stack Tecnológico](#stack-tecnológico)
+- [Requisitos Previos](#requisitos-previos)
+- [Instalación y Ejecución](#instalación-y-ejecución)
+- [Gestión de Datos](#gestión-de-datos)
+- [Desarrollo Local](#desarrollo-local)
 
 ---
 
-### Prueba 2: Levantar descargando las imágenes de la nube (GitHub Packages - ghcr.io)
+## Descripción
 
-#### 1. Apagar los contenedores anteriores (si estaban corriendo):
+FinFix es una plataforma integral para:
+- Registrar y monitorear obligaciones fijas mensuales
+- Gestionar servicios con vencimientos variables
+- Administrar compras en cuotas
+- Calcular automáticamente recargos por demora
+- Visualizar y controlar el flujo de gastos
+
+---
+
+## Stack Tecnológico
+
+| Componente | Tecnología |
+|-----------|-----------|
+| **Frontend** | React + Vite (Nginx Alpine) |
+| **Backend** | Node.js + Express API REST |
+| **Base de Datos** | PostgreSQL |
+| **Contenerización** | Docker & Docker Compose (Multi-stage builds) |
+
+---
+
+## Requisitos Previos
+
+Para ejecutar el sistema completo se necesita:
+
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) (incluye Docker Compose)
+> **Nota:** No es necesario tener Node.js ni PostgreSQL instalados localmente para ejecutar la aplicación con Docker.
+
+---
+
+## Instalación y Ejecución
+
+### Opción A: Levantar desde código fuente local
+
+1. **Clonar el repositorio:**
+   ```bash
+   git clone https://github.com/bistolfibri/ingsoft3-tp01.git
+   cd ingsoft3-tp01
+   ```
+
+2. **Configurar variables de entorno:**
+   ```bash
+   # En Linux/macOS:
+   cp .env.example .env
+   
+   # En PowerShell (Windows):
+   Copy-Item .env.example .env
+   ```
+
+3. **Levantar los servicios:**
+   ```bash
+   docker compose up -d --build
+   ```
+
+4. **Verificar el estado de los contenedores:**
+   ```bash
+   docker compose ps
+   ```
+   > La base de datos (`db`) debe mostrar estado `healthy` antes de que el backend responda.
+
+5. **Acceder a la aplicación:**
+   - Abre en tu navegador: **http://localhost:3000**
+
+---
+
+### Opción B: Usar imágenes precompiladas (GitHub Packages)
+
+1. **Configurar variables de entorno:**
+   ```bash
+   cp .env.example .env
+   ```
+
+2. **Levantar con imágenes del registro:**
+   ```bash
+   docker compose -f docker-compose.registry.yml up -d
+   ```
+
+3. **Acceder a la aplicación:**
+   - Abre en tu navegador: **http://localhost:3000**
+
+Imágenes utilizadas:
+- `ghcr.io/bistolfibri/finfix-backend:v0.1.0`
+- `ghcr.io/bistolfibri/finfix-frontend:v0.1.0`
+
+---
+
+## Gestión de Datos
+
+### Detener conservando datos
 ```bash
 docker compose down
 ```
+> Mantiene el volumen `db_data` intacto con toda la información guardada.
 
-#### 2. Levantar descargando las imágenes publicadas:
+### Detener y reiniciar base de datos desde cero
 ```bash
-docker compose -f docker-compose.registry.yml up -d
+docker compose down -v
 ```
-
-#### 3. Abrir la aplicación en el navegador:
-Ingresá a: http://localhost:3000
+> Borra permanentemente el volumen `db_data` y recrea la estructura inicial al volver a levantar.
 
 ---
 
-## Arquitectura del Sistema (TP2)
-- Frontend: React + Vite servido en producción por Nginx (Puerto 3000).
-- Backend: API REST en Node.js / Express (Puerto 3001).
-- Base de Datos: PostgreSQL 16 Alpine con persistencia en volumen db_data (Puerto 5432).
-- Registry de Imágenes: ghcr.io/bistolfibri/finfix-backend:v0.1.0 y ghcr.io/bistolfibri/finfix-frontend:v0.1.0 (Visibilidad Pública).
+## Desarrollo Local (Sin Docker)
+
+Para trabajar directamente sobre tu máquina:
+
+### Backend (Terminal 1)
+```bash
+cd backend
+npm install
+npm run dev
+```
+
+### Frontend (Terminal 2)
+```bash
+cd frontend
+npm install
+npm run dev
+```
