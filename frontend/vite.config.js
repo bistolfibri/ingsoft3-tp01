@@ -6,5 +6,17 @@ export default defineConfig({
   server: {
     port: 3000,
     host: true
+  },
+  test: {
+    globals: true,
+    environment: 'node',
+    coverage: {
+      provider: 'v8',
+      include: ['src/services/**/*.js'],
+      thresholds: {
+        lines: 55,
+        branches: 70
+      }
+    }
   }
 });

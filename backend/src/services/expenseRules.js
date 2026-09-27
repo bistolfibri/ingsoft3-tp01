@@ -5,9 +5,9 @@
 export function isDuplicateExpenseTitle(existingExpenses, newTitle, currentExpenseId = null) {
   if (!newTitle || typeof newTitle !== 'string') return false;
   const cleanTitle = newTitle.trim().toLowerCase();
-  
-  return (existingExpenses || []).some(exp => 
-    exp.id !== currentExpenseId && 
+
+  return (existingExpenses || []).some(exp =>
+    exp.id !== currentExpenseId &&
     exp.title && exp.title.trim().toLowerCase() === cleanTitle
   );
 }
@@ -21,10 +21,10 @@ export function isDuplicateExpenseTitle(existingExpenses, newTitle, currentExpen
  */
 export function processPaymentData(expense, paidAmount, paymentDate = new Date()) {
   if (!expense) throw new Error('La obligación a abonar no existe');
-  
+
   const estimated = Number(expense.estimated_amount) || 0;
   const amount = Number(paidAmount);
-  
+
   if (isNaN(amount) || amount <= 0) {
     throw new Error('El monto abonado debe ser mayor a $0');
   }
@@ -80,7 +80,7 @@ export function calculateInstallmentDetails(basePrice, totalInstallments, hasInt
 export function calculateCategorizedMetrics(totalBudget, expenses, currentYearMonthStr = null) {
   const budget = Number(totalBudget) || 0;
   const safeExpenses = Array.isArray(expenses) ? expenses : [];
-  
+
   const activeExpenses = safeExpenses.filter(e => {
     if (e.dynamic_status === 'VENCIDO') return true;
     if (e.due_date && currentYearMonthStr) {
@@ -184,5 +184,38 @@ export function validateExpenseInput(title, estimatedAmount, dueDateString, exis
   return {
     isValid: errors.length === 0,
     errors
+  };
+}
+/**
+ * Función desacoplada lista para recibir un repositorio/servicio inyectado (Mock)
+ */
+export async function fetchAndCalculateMetrics(repository, totalBudget, currentYM = null) {
+  if (!repository || typeof repository.findAllExpenses !== 'function') {
+    throw new Error('Repositorio de base de datos inválido o no provisto');
+  }
+  const expenses = await repository.findAllExpenses();
+  return calculateCategorizedMetrics(totalBudget, expenses, currentYM);
+}
+
+/**
+ * Función nueva para demostrar el freno del Quality Gate (Sin tests a propósito)
+ */
+export function calcularDescuentoAntiguedad(antiguedadAnios, montoGasto) {
+  if (!antiguedadAnios || antiguedadAnios <= 0) {
+    return { tieneDescuento: false, porcentaje: 0, montoFinal: montoGasto };
+  }
+  let porcentaje = 0;
+  if (antiguedadAnios >= 5) {
+    porcentaje = 15;
+  } else if (antiguedadAnios >= 3) {
+    porcentaje = 10;
+  } else if (antiguedadAnios >= 1) {
+    porcentaje = 5;
+  }
+  const descuento = (montoGasto * porcentaje) / 100;
+  return {
+    tieneDescuento: porcentaje > 0,
+    porcentaje,
+    montoFinal: montoGasto - descuento
   };
 }
