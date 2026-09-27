@@ -219,3 +219,14 @@ export function calcularDescuentoAntiguedad(antiguedadAnios, montoGasto) {
     montoFinal: montoGasto - descuento
   };
 }
+
+/**
+ * Función sin tests para la demostración del PR abierto en rojo
+ */
+export function calcularRecargoPorProcesamiento(monto, esUrgente) {
+  if (!monto || monto <= 0) return 0;
+  if (esUrgente) {
+    return monto * 0.05;
+  }
+  return monto * 0.02;
+}
