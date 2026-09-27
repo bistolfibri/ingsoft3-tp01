@@ -105,3 +105,54 @@ Este documento registra de forma incremental todas las decisiones técnicas, de 
 ### 6. Declaración de Uso de Inteligencia Artificial 
 - **Uso de IA**: Se utilizó asistencia de IA para consultar la sintaxis de GitHub Actions YAML, la directiva `buildx` con `type=gha,scope=...` y los parámetros de la API de GitHub para configurar los Required Status Checks.
 - **Verificación realizada**: Se probó el pipeline en Pull Requests reales, se forzó y corrigió la falla en el PR #22, se verificó la palabra `CACHED` en los logs de la segunda corrida y se confirmó que el Status Badge en el `README.md` refleja el estado de `main`.
+
+
+---
+
+## TP5 — Calidad Automatizada: Tests, Coverage y Quality Gate
+
+### 1. Lógica elegida para testear y Justificación
+- **Backend (`expenseRules.js`)**: testeo de  las reglas puras del dominio financiero de **FinFix**:
+  - `determineExpenseStatusAndPriority`: Cálculo automatizado de vencimientos (Pendiente, Próximo a vencer, Vencido) y prioridades (Baja, Media, Alta).
+  - `processPaymentData`: Validación de montos abonados y recargos por demora en pagos fuera de término.
+  - `isDuplicateExpenseTitle`: Prevención de duplicación de conceptos considerando mayúsculas y espacios.
+  - `calculateCategorizedMetrics`: Cálculo de métricas comprometidas (gastos fijos vs eventuales) y límites presupuestarios.
+  - `calculateInstallmentDetails`: Matemática de cuotas con y sin intereses.
+- **Frontend (`api.js`)**: Se testearon las funciones del cliente de servicios HTTP (`fetchDashboard`, `createExpense`, `deleteExpense`), verificando la construcción de peticiones y el manejo de excepciones de red y validación.
+
+### 2. Medición de Cobertura y Justificación de Umbrales (Quality Gate)
+En lugar de copiar un número arbitrario, defini los umbrales de cobertura basandome directamente en mi medición real sobre el código de negocio (`src/services/`):
+- **Backend**: Medición base de **72.72% en Líneas** y **50.89% en Ramas**. Fije el umbral de freno en **70% de Líneas** y **50% de Ramas**.
+- **Frontend**: Medición base de **59.64% en Líneas** y **75.00% en Ramas**. Fije el umbral de freno en **55% de Líneas** y **70% de Ramas**.
+- **Justificación**: Deje un margen técnico exigente (de 2 a 4 puntos porcentuales) respecto a mi medición real para tolerar pequeñas refactorizaciones, pero garantizando un freno automático estricto que bloquea el merge si cualquier Pull Request decae la cobertura respecto a mi estándar entregado. Obliga a agregar un test automaticamente luego de agregar una función para mayor seguridad ya que, es una página que requiere muchos calculos específicos. 
+
+### 3. Exclusiones Legítimas de Cobertura
+Excluí explícitamente de la medición los archivos sin comportamiento o de cableado de infraestructura:
+- **Backend**: Excluidos `server.js` (arranque del servidor Express) y `db.js` (pool de conexión a PostgreSQL).
+- **Frontend**: Excluidos `main.jsx` (punto de montaje en el DOM) y `App.jsx` (componente monolítico de interfaz de usuario de 1.200 líneas).
+- **Razón**: Medir pantallas de interfaz gráfica en los unit tests distorsiona la métrica. Como vimos, la interfaz será testeada mediante pruebas End-to-End en el TP7. Excluir el arranque no es hacer trampa: es medir la calidad sobre la lógica que importa.
+
+### 4. Ejercicio de la Rama de Código No Cubierta (Obligatorio)
+- **Línea identificada**: En `backend/src/services/expenseRules.js` (líneas 155-157), la condición `if (diffDays >= 0 && diffDays <= 3)` evalúa las obligaciones que vencen en los próximos 3 días.
+- **Entrada concreta que la recorrería**: Una obligación con `due_date` configurada a 2 días posteriores a la fecha actual (`currentDate`).
+- **Decisión tomada**: Se documentó el camino y se mantuvo cubierta la rama dentro de la suite unitaria.
+
+### 5. Inyección de Dependencias y Mocks (Dobles de Riesgo)
+Para cumplir con el requisito obligatorio de Mocks sin tocar dependencias reales:
+- **Backend**: Se creó `fetchAndCalculateMetrics(repository, totalBudget)` utilizando Inyección de Dependencias. En las pruebas unitarias se inyectó un `mockRepository` utilizando `vi.fn()`, verificando que la función llamara a `findAllExpenses()` una sola vez (`toHaveBeenCalledTimes(1)`) sin tocar PostgreSQL real.
+- **Frontend**: En `api.test.js` se interceptó la función global `fetch` del navegador utilizando `vi.stubGlobal('fetch', mockFetch)` y `vi.fn()`, simulando respuestas JSON y errores HTTP 500 sin salir a la red.
+
+### 6. Enlaces Comprobables de Evidencia en GitHub
+- **Resumen de Cobertura y Artefactos Descargables**: [Workflow Run #36328041640](https://github.com/bistolfibri/ingsoft3-tp01/actions/runs/36328041640)
+- **Corrida ROJA Bloqueada por Umbral**: [Job Build-Backend FAILED por Cobertura < 70%](https://github.com/bistolfibri/ingsoft3-tp01/actions/runs/36328041640/job/108644501261?pr=29)
+- **Pull Request N° 1 Mergeado (Secuencia Rojo → Fix → Verde → Merge)**: [PR #29](https://github.com/bistolfibri/ingsoft3-tp01/pull/29)
+- **Pull Request N° 2 Abierto en ROJO (Prueba Viva de Bloqueo Vigente)**: [PR #30](https://github.com/bistolfibri/ingsoft3-tp01/pull/30)
+
+### 8. Dificultades Encontradas y Soluciones
+- **Conflicto de Peer Dependencies entre Vite 5 y Vitest 5**: En el frontend, `npm install` arrojó error `ERESOLVE` por la versión de Vite. Se resolvió fijando `vitest@^1.6.0` con la bandera `--legacy-peer-deps`.
+- **Distorsión del Coverage por Pantalla de UI**: Al medir todo el frontend, `App.jsx` (1.200 líneas) bajaba el porcentaje a 2.65%. Se resolvió configurando `include: ['src/services/**/*.js']` en `vite.config.js` para enfocar la medición en los servicios de API.
+- **Falso Positivo en PR #30**: La primera función de prueba corta no alcanzó a bajar la cobertura general por debajo del 70%. Se resolvió agregando la función `evaluarRiesgoCrediticioYPromociones` de 30 líneas con múltiples `if`, provocando la caída efectiva al 60.8% y activando el freno del gate.
+
+### 9. Declaración de Uso de Inteligencia Artificial
+- **Uso de IA**: Se utilizó asistencia de IA como guía técnica para configurar los reportes de cobertura en Vitest v8 (`@vitest/coverage-v8`), redactar los stubs de `vi.stubGlobal` para `fetch` en frontend y estructurar las justificaciones de umbrales.
+- **Verificación realizada**: Todos los 19 unit tests, las mediciones de cobertura, las corridas en rojo por umbral y las fusiones de los PRs #29 y #30 fueron ejecutados, probados y verificados manualmente en la terminal local y en la interfaz web de GitHub.
