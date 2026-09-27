@@ -11,7 +11,8 @@ import {
     calculateInstallmentDetails,
     calculateCategorizedMetrics,
     determineExpenseStatusAndPriority,
-    fetchAndCalculateMetrics
+    fetchAndCalculateMetrics,
+    calcularDescuentoAntiguedad /*se agregó esta función nueva para demostrar el freno del Quality Gate (sin tests a propósito)*/
 } from './expenseRules.js';
 
 describe('FinFix - Suite de Reglas de Negocio Backend', () => {
@@ -144,6 +145,19 @@ describe('FinFix - Suite de Reglas de Negocio Backend', () => {
             expect(result.totalCommitted).toBe(200000);
             expect(result.available).toBe(300000);
             expect(result.percentage).toBe(40);
+        });
+    });
+    describe('calcularDescuentoAntiguedad', () => {
+        it.each([
+            { anios: 0, monto: 100000, expectedDiscount: false, expectedRate: 0, expectedFinal: 100000 },
+            { anios: 1, monto: 100000, expectedDiscount: true, expectedRate: 5, expectedFinal: 95000 },
+            { anios: 3, monto: 100000, expectedDiscount: true, expectedRate: 10, expectedFinal: 90000 },
+            { anios: 5, monto: 100000, expectedDiscount: true, expectedRate: 15, expectedFinal: 85000 }
+        ])('para $anios años de antigüedad y monto $monto, el descuento es $expectedRate%', ({ anios, monto, expectedDiscount, expectedRate, expectedFinal }) => {
+            const result = calcularDescuentoAntiguedad(anios, monto);
+            expect(result.tieneDescuento).toBe(expectedDiscount);
+            expect(result.porcentaje).toBe(expectedRate);
+            expect(result.montoFinal).toBe(expectedFinal);
         });
     });
 });
