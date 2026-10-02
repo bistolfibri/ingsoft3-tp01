@@ -19,4 +19,5 @@ COPY --from=build /app/dist /usr/share/nginx/html
 ENV BACKEND_URL=http://backend:3001 \
     DNS_RESOLVER=127.0.0.11
 
-EXPOSE 80 # Puerto expuesto por el servidor web Nginx
+# Puerto expuesto por el servidor web Nginx
+EXPOSE 80
