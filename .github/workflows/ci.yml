@@ -1,5 +1,7 @@
+# Nombre del pipeline que aparece arriba en la pestaña Actions de GitHub
 name: CI
 
+# Disparadores: Se ejecuta automáticamente en Pull Requests y en pushes a main
 on:
   pull_request:
     branches: [main]
@@ -7,8 +9,12 @@ on:
     branches: [main]
 
 jobs:
+  # =========================================================================
+  # JOB 1: VERIFICACIÓN Y PUBLICACIÓN DEL BACKEND
+  # =========================================================================
   build-backend:
     runs-on: ubuntu-latest
+    # Mínimo Privilegio: Solo le damos permiso de escribir paquetes a este job
     permissions:
       contents: read
       packages: write
@@ -41,6 +47,7 @@ jobs:
           name: coverage-backend
           path: ./backend/coverage
 
+      # Autenticación en GitHub Packages (Solo se ejecuta cuando entra a main)
       - name: Entrar al registry (ghcr.io)
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: docker/login-action@v4
@@ -52,6 +59,7 @@ jobs:
       - name: Preparar el constructor que sabe cachear
         uses: docker/setup-buildx-action@v4
 
+      # EL ÚLTIMO PASO: Construye y publica la imagen en ghcr.io etiquetada con el SHA del commit
       - name: Construir y publicar la imagen del backend
         uses: docker/build-push-action@v7
         with:
@@ -61,6 +69,9 @@ jobs:
           cache-from: type=gha,scope=backend
           cache-to: type=gha,mode=max,scope=backend
 
+  # =========================================================================
+  # JOB 2: VERIFICACIÓN Y PUBLICACIÓN DEL FRONTEND
+  # =========================================================================
   build-frontend:
     runs-on: ubuntu-latest
     permissions:
@@ -114,4 +125,76 @@ jobs:
           tags: ghcr.io/bistolfibri/ingsoft3-tp01-frontend:sha-${{ github.sha }}
           cache-from: type=gha,scope=frontend
           cache-to: type=gha,mode=max,scope=frontend
+
+  # =========================================================================
+  # JOB 3: DESPLIEGUE AUTOMÁTICO AL ENTORNO DE QA
+  # =========================================================================
+  deploy-qa:
+    runs-on: ubuntu-latest
+    needs: [build-backend, build-frontend] # Solo corre si los 2 jobs anteriores pasaron
+    if: github.ref == 'refs/heads/main' # Solo corre en pushes a main (los PRs no despliegan)
+    environment: qa # Conecta con el entorno qa de GitHub
+    env:
+      DB_PASSWORD: postgres123
+    steps:
+      - name: Bajar el código al runner
+        uses: actions/checkout@v4
+
+      - name: Levantar Entorno QA con Compose
+        run: docker compose -f compose.qa.yml up -d --build
+
+      - name: Smoke Test QA (Comprobación de vida en loop con curl)
+        shell: bash
+        env:
+          URL_API: http://localhost:8080
+          URL_FRONT: http://localhost:3000
+        run: |
+          echo "Esperando a que QA esté vivo..."
+          for i in $(seq 1 30); do
+            if curl -fsS --max-time 10 "$URL_API/api/dashboard" > /dev/null \
+               && curl -fsS --max-time 10 "$URL_FRONT/" > /dev/null; then
+              echo "✅ QA responde correctamente (API + BD + Front)"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "❌ QA no respondió a tiempo"
+          exit 1
+
+  # =========================================================================
+  # JOB 4: DESPLIEGUE A PRODUCCIÓN CON APROBACIÓN MANUAL (GATE HUMANO)
+  # =========================================================================
+  deploy-prod:
+    runs-on: ubuntu-latest
+    needs: deploy-qa # Solo corre si QA se desplegó y el smoke test dio verde
+    environment: production # ⏸ ACÁ EL PIPELINE SE PAUSA HASTA TU APROBACIÓN MANUAL
+    concurrency:
+      group: deploy-prod
+      cancel-in-progress: false
+    env:
+      DB_PASSWORD: postgres123
+    steps:
+      - name: Bajar el código al runner
+        uses: actions/checkout@v4
+
+      - name: Levantar Entorno PROD con Compose
+        run: docker compose -f compose.prod.yml up -d --build
+
+      - name: Smoke Test PROD (Comprobación de vida en loop con curl)
+        shell: bash
+        env:
+          URL_API: http://localhost:8081
+          URL_FRONT: http://localhost:3001
+        run: |
+          echo "Esperando a que PROD esté vivo..."
+          for i in $(seq 1 30); do
+            if curl -fsS --max-time 10 "$URL_API/api/dashboard" > /dev/null \
+               && curl -fsS --max-time 10 "$URL_FRONT/" > /dev/null; then
+              echo "✅ PROD responde correctamente (API + BD + Front)"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "❌ PROD no respondió a tiempo"
+          exit 1
           
