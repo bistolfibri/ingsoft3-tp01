@@ -1,0 +1,20 @@
+server {
+    listen 80; # Nginx escucha en el puerto nativo 80 del contenedor
+
+    # Configuración para servir la aplicación web de React (archivos HTML/JS)
+    location / {
+        root /usr/share/nginx/html; # Carpeta donde están los archivos estáticos de React
+        index index.html;
+        try_files $uri $uri/ /index.html; # Si el usuario navega a una ruta (ej: /gastos), redirige a index.html
+    }
+
+    # Nginx lee estas 2 variables que le pasa el sistema operativo al arrancar:
+    resolver ${DNS_RESOLVER} valid=10s ipv6=off; # El servidor DNS para resolver nombres de dominio
+    set $backend_api ${BACKEND_URL}; # La dirección real de la API (en QA o en PROD)
+
+    # REGLA DE PROXY INVERSO: Todo pedido que empiece con /api/ se retransmite al Backend
+    location /api/ {
+        proxy_pass $backend_api; # Redirige el pedido a la URL de la variable $backend_api
+        proxy_ssl_server_name on; # Habilita la conexión segura HTTPS para servidores en la nube como Render
+    }
+}

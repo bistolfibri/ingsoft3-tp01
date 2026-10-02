@@ -1,0 +1,48 @@
+# Nombre de proyecto aislado en Compose (Crucial para que no choque con QA)
+name: prod
+
+services:
+  # Base de datos PostgreSQL propia del entorno de Producción
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres123}
+      POSTGRES_DB: app_prod # Base de datos aislada de Producción
+    volumes:
+      - db_data_prod:/var/lib/postgresql/data # Volumen de disco propio de Producción
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/1_schema.sql
+      - ./database/seed.sql:/docker-entrypoint-initdb.d/2_seed.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      retries: 10
+
+  # Backend de Producción
+  backend:
+    build: ./backend
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: app_prod
+      DB_USER: postgres
+      DB_PASSWORD: ${DB_PASSWORD:-postgres123}
+      PORT: 3001
+    ports:
+      - "8081:3001" # Puerto 8081 en tu máquina para la API de Producción
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # Frontend de Producción
+  frontend:
+    build: ./frontend
+    environment:
+      BACKEND_URL: http://backend:3001 # Nginx redirige las llamadas a la API de Producción
+      DNS_RESOLVER: 127.0.0.11
+    ports:
+      - "3001:80" # Puerto 3001 en tu máquina para la web de Producción
+    depends_on:
+      - backend
+
+volumes:
+  db_data_prod:
