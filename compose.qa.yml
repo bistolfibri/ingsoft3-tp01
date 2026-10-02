@@ -1,0 +1,48 @@
+# Nombre de proyecto aislado en Compose (Crucial para que no choque con PROD)
+name: qa
+
+services:
+  # Base de datos PostgreSQL propia del entorno de QA
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres123}
+      POSTGRES_DB: app_qa # Base de datos aislada de QA
+    volumes:
+      - db_data_qa:/var/lib/postgresql/data # Volumen de disco propio de QA
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/1_schema.sql
+      - ./database/seed.sql:/docker-entrypoint-initdb.d/2_seed.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      retries: 10
+
+  # Backend de QA
+  backend:
+    build: ./backend
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: app_qa
+      DB_USER: postgres
+      DB_PASSWORD: ${DB_PASSWORD:-postgres123}
+      PORT: 3001
+    ports:
+      - "8080:3001" # Puerto 8080 en tu máquina para la API de QA
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # Frontend de QA
+  frontend:
+    build: ./frontend
+    environment:
+      BACKEND_URL: http://backend:3001 # Nginx redirige las llamadas a la API de QA
+      DNS_RESOLVER: 127.0.0.11
+    ports:
+      - "3000:80" # Puerto 3000 en tu máquina para la web de QA
+    depends_on:
+      - backend
+
+volumes:
+  db_data_qa:
