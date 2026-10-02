@@ -156,3 +156,53 @@ Para cumplir con el requisito obligatorio de Mocks sin tocar dependencias reales
 ### 9. Declaración de Uso de Inteligencia Artificial
 - **Uso de IA**: Se utilizó asistencia de IA como guía técnica para configurar los reportes de cobertura en Vitest v8 (`@vitest/coverage-v8`), redactar los stubs de `vi.stubGlobal` para `fetch` en frontend y estructurar las justificaciones de umbrales.
 - **Verificación realizada**: Todos los 19 unit tests, las mediciones de cobertura, las corridas en rojo por umbral y las fusiones de los PRs #29 y #30 fueron ejecutados, probados y verificados manualmente en la terminal local y en la interfaz web de GitHub.
+
+---
+
+## TP6 — Despliegue Continuo (CD) y Gestión de Entornos
+
+### Enlaces de este TP
+
+| Recurso | Enlace Directo |
+| :--- | :--- |
+| **Paquete Backend en GHCR** | [ghcr.io/bistolfibri/ingsoft3-tp01-backend](https://github.com/bistolfibri/ingsoft3-tp01/pkgs/container/ingsoft3-tp01-backend) |
+| **Paquete Frontend en GHCR** | [ghcr.io/bistolfibri/ingsoft3-tp01-frontend](https://github.com/bistolfibri/ingsoft3-tp01/pkgs/container/ingsoft3-tp01-frontend) |
+| **Corrida con Despliegue RECHAZADO** | [Workflow Run #42 (Rejected)](https://github.com/bistolfibri/ingsoft3-tp01/actions/runs/18182903126) |
+| **Entorno QA Local** | API: `http://localhost:8080/api/dashboard` \| Front: `http://localhost:3000` |
+| **Entorno PROD Local** | API: `http://localhost:8081/api/dashboard` \| Front: `http://localhost:3001` |
+
+### 1. Inmutabilidad de Artefactos y Tagging por SHA
+- **Estrategia de Etiquetado**: Se abandonó el uso de la etiqueta mutable `:latest` para la publicación de contenedores en GitHub Packages (`ghcr.io`). Se adoptó la convención inmutable `:sha-${{ github.sha }}` utilizando el Hash completo del commit.
+- **Justificación**: Garantiza la trazabilidad absoluta del código desplegado. Un contenedor publicado con la etiqueta del SHA es 100% inalterable: se sabe exactamente qué versión de código fuente dio origen al paquete de producción y previene que despliegues simultáneos sobreescriban la imagen en el registry.
+
+### 2. Desacople del Frontend mediante Nginx Template (`default.conf.template`)
+- **Problema Solucionado**: En el TP2 la URL del Backend (`http://backend:3001`) quedaba compilada estáticamente dentro del bundle JS del frontend. Eso exigía recompilar una imagen de Docker distinta para QA y otra para Producción.
+- **Solución implementada**: Se configuró la plantilla `/etc/nginx/templates/default.conf.template`. Al iniciar el contenedor en Nginx, la imagen lee las variables de entorno `${BACKEND_URL}` y `${DNS_RESOLVER}` inyectadas por Docker Compose.
+- **Resultado de Arquitectura**: **Una sola imagen de Docker sirve para QA y para Producción**. Se compila 1 sola vez en el pipeline y se promueve entre entornos sin sufrir modificaciones.
+
+### 3. Aislamiento Estricto de Entornos (QA vs Producción)
+- **Bases de Datos Separadas**: QA opera sobre la base `app_qa` y Producción sobre `app_prod`, impidiendo la contaminación o pérdida inadvertida de datos reales durante pruebas.
+- **Aislamiento de Proyecto en Compose**: Se agregaron las directivas `name: qa` y `name: prod` en `compose.qa.yml` y `compose.prod.yml`. Esto evita que `docker compose` asocie los contenedores al nombre del directorio raíz y derribe el entorno de QA al redesplegar Producción.
+- **Mapeo de Puertos**:
+  - QA: Backend en puerto `8080`, Frontend en puerto `3000`.
+  - PROD: Backend en puerto `8081`, Frontend en puerto `3001`.
+
+### 4. Gate Humano y Reglas de Protección de Entorno
+- **Configuración del Environment `production`**: Se habilitó la regla *Required reviewers* asignando al desarrollador (`bistolfibri`) como aprobador oficial y desmarcando la casilla *Prevent self-review*.
+- **Demostración de Rechazo**: En la corrida #42 se detuvo el pipeline en `deploy-prod` y se ejecutó un rechazo explícito con el motivo: *"Rechazado intencionalmente: se detectó un fallo visual en QA durante las pruebas de regresión"*.
+- **Demostración de Aprobación**: Tras verificar el correcto funcionamiento en QA y el pase de Smoke Tests en bucle con `curl`, se revisó la solicitud de despliegue y se hizo clic en *Approve and deploy*, habilitando la ejecución automática hacia el entorno de Producción.
+
+### 5. Plan de Rollback y Medición de Tiempos
+- **Procedimiento de Recuperación Ante Fallos**: Si se detecta una anomalía en Producción tras un despliegue, el equipo no compila código a las apuradas. Se re-despliega instantáneamente la imagen inmutable anterior mediante la variable `SHA_ANTERIOR`:
+  ```bash
+  docker pull ghcr.io/bistolfibri/ingsoft3-tp01-backend:sha-70f09f2812e1310d33d7175504d718abd80d393f
+  docker pull ghcr.io/bistolfibri/ingsoft3-tp01-frontend:sha-70f09f2812e1310d33d7175504d718abd80d393f
+  docker compose -f compose.prod.yml up -d
+
+### 6. Dificultades Encontradas y Soluciones
+- **Sintaxis de Comentarios en Dockerfile**: En `frontend/Dockerfile`, colocar `# comment` en la misma línea de `EXPOSE 80` provocó el fallo `invalid containerPort: #`. Se resolvió moviendo los comentarios a líneas independientes por encima de la directiva.
+- **Archivo no Encontrado en Runner**: En el primer deploy, la acción falló con `no such file or directory` al buscar `compose.qa.yml`. Se solucionó rastreando e incluyendo explícitamente `compose.qa.yml` y `compose.prod.yml` dentro del control de versiones de Git.
+
+### 7. Declaración de Uso de Inteligencia Artificial
+- **Uso de IA**: Se consultó asistencia de IA para estructurar los jobs de despliegue en GitHub Actions YAML, diseñar la sustitución de variables de Nginx (`envsubst`) y configurar la comprobación de salud en loop con `curl`.
+- **Verificación realizada**: Se compilaron y probaron las imágenes, se verificó el aislamiento de puertos en `localhost`, se comprobó la autenticación en `ghcr.io` y se completaron manualmente los flujos de rechazo y aprobación de despliegues en GitHub Environments.
