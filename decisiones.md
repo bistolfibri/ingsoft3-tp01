@@ -206,3 +206,57 @@ Para cumplir con el requisito obligatorio de Mocks sin tocar dependencias reales
 ### 7. Declaración de Uso de Inteligencia Artificial
 - **Uso de IA**: Se consultó asistencia de IA para estructurar los jobs de despliegue en GitHub Actions YAML, diseñar la sustitución de variables de Nginx (`envsubst`) y configurar la comprobación de salud en loop con `curl`.
 - **Verificación realizada**: Se compilaron y probaron las imágenes, se verificó el aislamiento de puertos en `localhost`, se comprobó la autenticación en `ghcr.io` y se completaron manualmente los flujos de rechazo y aprobación de despliegues en GitHub Environments.
+
+
+---
+
+## TP7 — Contenedores en el Pipeline y Pruebas E2E
+
+### Enlaces del TP7
+
+| Recurso | Enlace Directo |
+| :--- | :--- |
+| **Paquetes en Registry (GHCR)** | [ghcr.io/bistolfibri/ingsoft3-tp01-backend](https://github.com/bistolfibri/ingsoft3-tp01/pkgs/container/ingsoft3-tp01-backend) \| [frontend](https://github.com/bistolfibri/ingsoft3-tp01/pkgs/container/ingsoft3-tp01-frontend) |
+| **Corrida con Integración VERDE y E2E ROJA (Freno)** | [Workflow Run #37207451220](https://github.com/bistolfibri/ingsoft3-tp01/actions/runs/37207451220) (Commit `dce3b88`) |
+| **Artefactos del Freno** | Reporte Integración VERDE (`playwright-report-integracion`) \| Reporte E2E ROJO (`playwright-report-e2e`) |
+| **Corrida Completa en VERDE hasta PROD** | [Workflow Run #37209350685](https://github.com/bistolfibri/ingsoft3-tp01/actions/runs/37209350685) |
+| **Release & Tag v7.0.0** | [Release v7.0.0 — GitHub](https://github.com/bistolfibri/ingsoft3-tp01/releases/tag/v7.0.0) |
+| **Entornos Desplegados (Local/Runner)** | QA: API `http://localhost:8080` / Front `http://localhost:3000` \| PROD: API `http://localhost:8081` / Front `http://localhost:3001` |
+
+### 1. Build Once, Deploy Many: Inmutabilidad como Unidad de Release
+- **Problema Resuelto del TP6**: En el TP6, cada entorno reconstruía el código desde el repositorio (compilando nuevamente la aplicación). Esto violaba el principio de inmutabilidad: no se podía demostrar que los bits probados en QA fueran idénticos a los ejecutados en Producción.
+- **Solución implementada**: El pipeline construye las imágenes de Docker del backend y frontend **una sola vez** en los jobs `build-backend` y `build-frontend`, publicándolas en `ghcr.io` etiquetadas inmutablemente con `sha-${{ github.sha }}`. Los entornos de QA (`deploy-qa`) y Producción (`deploy-prod`) consumen y **ejecutan tal cual esa misma imagen** previa descuidando reconstrucciones locales.
+
+### 2. Estrategia de Etiquetas (`sha-<commit>` vs `v7.0.0`)
+- **Tag inmutable `sha-<commit>`**: Cada corrida publica en `ghcr.io` paquetes identificados con el hash del commit. Esto garantiza la trazabilidad criptográfica exacta entre la versión del código fuente e imagen en el registry.
+- **Tag de Git y Release `v7.0.0`**: Señala la versión congelada de Producción en el historial de Git.
+- **Por qué NO se publica `latest`**: La etiqueta `latest` es un puntero mutable que cambia con cada push, destruyendo la reproducibilidad del entorno. Si se desplegara `latest` en Producción, no se podría auditar qué versión de código está corriendo exactamente en la infraestructura.
+- **De la Release a la Imagen en un paso**: Con el comando `git rev-list -n1 v7.0.0` se obtiene el commit SHA correspondiente, el cual identifica directamente la etiqueta `sha-<commit>` publicada en GHCR.
+
+### 3. Diagnóstico de suites: Pruebas de Integración vs End-to-End (E2E)
+- **Suite de Integración (`frontend/e2e/api.spec.js`)**: Realiza 3 pruebas HTTP directas (sin navegador y sin dobles de prueba) contra la API desplegada en QA (`http://localhost:8080`) probando la comunicación directa endpoint $\rightarrow$ backend $\rightarrow$ PostgreSQL real.
+- **Suite E2E (`frontend/e2e/gastos.spec.js`)**: Realiza 3 flujos de usuario reales automatizando un navegador Chromium (Playwright) contra la interfaz de usuario de QA (`http://localhost:3000`).
+- **Diagnóstico del Par Verde / Rojo (Evidencia de Freno)**:
+  - **Integración VERDE 🟢 + E2E ROJA 🔴**: Diagnostica que el backend y la base de datos de PostgreSQL están sanos y responden correctamente las reglas de negocio, pero la interfaz visual del frontend sufrió un fallo de diseño o desalineación de locators (ej. cambio del texto en el botón del formulario).
+  - **Integración ROJA 🔴 + E2E 🚫 (Salteado)**: Si la API o la base de datos se rompen, el job `integracion` falla de inmediato y cancela el job `e2e` sin gastar recursos de navegador para confirmar lo que ya se sabe.
+
+### 4. Integración Amplia vs Estrecha
+- **Elección adoptada**: Se implementó la **Integración Amplia** (probando la API desplegada en el entorno QA real mediante Docker Compose).
+- **Ventajas y Desventajas**:
+  - **Ventaja**: Verifica la pila tecnológica real completa (red, contenedores, drivers de PostgreSQL y servidor HTTP) sin necesidad de mantener dobles en memoria (`WebApplicationFactory` o SQLite) que oculten discrepancias en tipos de datos.
+  - **Desventaja**: Requiere que el entorno QA esté levantado previamente antes de ejecutar la suite de pruebas.
+
+### 5. Resiliencia, Cold Start y Flaky Tests
+- **Gestión de Cold Start**: Se configuraron retries (`retries: 1` en Playwright) y tiempos de espera explícitos mediante comprobación de disponibilidad (`curl` en bucle con timeout de hasta 30 segundos) antes de lanzar las suites.
+- **Mitigación de Flaky Tests**: Se eliminaron los `sleep()` estáticos manuales en favor del *auto-waiting* nativo de Playwright sobre los elementos del DOM.
+
+### 6. Misma Imagen de Frontend en QA y Producción
+- **Configuración Dinámica**: Nginx utiliza la plantilla `default.conf.template` resolviendo la variable de entorno `${BACKEND_URL}` inyectada en tiempo de ejecución por Docker Compose. Esto permite que la misma imagen inmutable funcione en QA apuntando a `http://backend:3001` y en Producción apuntando a su backend correspondiente sin recompilar el bundle JS.
+
+### 7. Dificultades Encontradas y Soluciones
+- **Aislamiento de Runners en GitHub Actions**: Cada job de `ubuntu-latest` corre en una VM independiente. Al finalizar `deploy-qa`, los contenedores de esa VM se destruían. Se resolvió agregando la ejecución de `docker compose -f compose.qa.yml up -d` dentro de los jobs de `integracion` y `e2e` para garantizar que la imagen inmutable de GHCR estuviera activa en cada VM.
+- **Comportamiento del locator en Playwright (`isEnabled`)**: `btnGuardar.isEnabled()` en Playwright aguarda implícitamente hasta 60 segundos a que un botón deshabilitado se habilite. Se corrigió la aserción utilizando `await expect(btnGuardar).toBeDisabled();` para verificar de forma instantánea el estado deshabilitado.
+
+### 8. Declaración de Uso de Inteligencia Artificial
+- **Uso de IA**: Se consultó asistencia de IA para diseñar la orquestación de jobs en GitHub Actions YAML, estructurar la configuración de Playwright para pruebas de API sin navegador y solucionar el aislamiento de contenedores en runners efímeros.
+- **Verificación realizada**: Se compilaron y publicaron las imágenes inmutables en `ghcr.io`, se ejecutó y diagnosticó la corrida en rojo frenando la producción, se corrigió el bug de UI, se completaron los 5 jobs verdes y la aprobación de `deploy-prod`, y se creó el tag `v7.0.0`.
