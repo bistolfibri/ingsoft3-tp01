@@ -154,9 +154,24 @@ jobs:
     runs-on: ubuntu-latest
     needs: deploy-qa
     timeout-minutes: 15
+    env:
+      DB_PASSWORD: postgres123
+      IMAGE_TAG: sha-${{ github.sha }}
     steps:
       - name: Bajar código al runner
         uses: actions/checkout@v4
+
+      - name: Levantar Entorno QA con Docker Compose
+        run: |
+          docker compose -f compose.qa.yml up -d
+          echo "Esperando a que la API de QA responda..."
+          for i in $(seq 1 30); do
+            if curl -fsS --max-time 10 "http://localhost:8080/api/dashboard" > /dev/null; then
+              echo "✅ QA API lista para integración"
+              break
+            fi
+            sleep 3
+          done
 
       - name: Instalar Node.js
         uses: actions/setup-node@v4
@@ -187,9 +202,24 @@ jobs:
     runs-on: ubuntu-latest
     needs: integracion
     timeout-minutes: 20
+    env:
+      DB_PASSWORD: postgres123
+      IMAGE_TAG: sha-${{ github.sha }}
     steps:
       - name: Bajar código al runner
         uses: actions/checkout@v4
+
+      - name: Levantar Entorno QA con Docker Compose
+        run: |
+          docker compose -f compose.qa.yml up -d
+          echo "Esperando a que el Frontend de QA responda..."
+          for i in $(seq 1 30); do
+            if curl -fsS --max-time 10 "http://localhost:3000/" > /dev/null; then
+              echo "✅ QA Frontend listo para E2E"
+              break
+            fi
+            sleep 3
+          done
 
       - name: Instalar Node.js
         uses: actions/setup-node@v4
@@ -220,7 +250,7 @@ jobs:
   # =========================================================================
   deploy-prod:
     runs-on: ubuntu-latest
-    needs: e2e # Solo se habilita si las Pruebas E2E dieron VERDE
+    needs: e2e
     environment: production # ⏸ PAUSADO ESPERANDO APROBACIÓN MANUAL
     concurrency:
       group: deploy-prod
@@ -252,4 +282,4 @@ jobs:
           done
           echo "❌ PROD no respondió a tiempo"
           exit 1
-          
+      
