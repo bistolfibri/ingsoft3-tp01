@@ -1093,7 +1093,7 @@ export default function App() {
 
               <div className="modal-actions">
                 <button type="button" className="btn-secondary" onClick={() => setShowAddModal(false)}>Cancelar</button>
-                <button type="submit" className="btn-primary" disabled={!isFormValid}>Crear Gasto</button>
+                <button type="submit" className="btn-primary" disabled={!isFormValid}>Guardar Obligación</button>
               </div>
             </form>
           </div>
