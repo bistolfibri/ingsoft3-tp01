@@ -1,19 +1,19 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  fetchDashboard, 
-  createExpense, 
-  payExpense, 
-  deleteExpense, 
-  updateBudget 
+import {
+  fetchDashboard,
+  createExpense,
+  payExpense,
+  deleteExpense,
+  updateBudget
 } from './services/api';
-import { 
-  Wallet, 
-  PlusCircle, 
-  CheckCircle2, 
-  AlertCircle, 
-  Clock, 
-  Trash2, 
-  Calendar, 
+import {
+  Wallet,
+  PlusCircle,
+  CheckCircle2,
+  AlertCircle,
+  Clock,
+  Trash2,
+  Calendar,
   X,
   CreditCard,
   Home,
@@ -48,15 +48,15 @@ const formatMoney = (val) => {
 
 const DEFAULT_DATA = {
   currentPeriodName: 'Agosto 2026',
-  metrics: { 
-    budget: 950000, 
-    totalFixedCommitted: 294200, 
-    totalEventualCommitted: 55000, 
-    totalCommitted: 349200, 
-    totalPaid: 55000, 
-    available: 600800, 
-    percentage: 37, 
-    status: 'NORMAL' 
+  metrics: {
+    budget: 950000,
+    totalFixedCommitted: 294200,
+    totalEventualCommitted: 55000,
+    totalCommitted: 349200,
+    totalPaid: 55000,
+    available: 600800,
+    percentage: 37,
+    status: 'NORMAL'
   },
   categories: DEFAULT_CATEGORIES,
   expenses: [
@@ -313,18 +313,18 @@ export default function App() {
 
   // Cálculo de Cuotas con Interés sobre el Total:
   const isCuotaCategory = safeCategories.find(c => String(c.id) === String(formData.category_id))?.name === 'Cuota';
-  
+
   const basePriceNum = Number(formData.base_amount) || 0;
   const interestRateNum = formData.has_interest === 'YES' ? (Number(formData.interest_rate) || 0) : 0;
   const totalPriceCalculated = Math.round(basePriceNum * (1 + (interestRateNum / 100)));
   const totalInstallmentCount = Math.max(1, Number(formData.installment_total) || 1);
   const calculatedInstallmentAmount = Math.round(totalPriceCalculated / totalInstallmentCount);
 
-  const effectiveAmountToUse = isCuotaCategory 
-    ? calculatedInstallmentAmount 
+  const effectiveAmountToUse = isCuotaCategory
+    ? calculatedInstallmentAmount
     : (Number(formData.estimated_amount) || 0);
 
-  const isDuplicateTitle = safeExpenses.some(exp => 
+  const isDuplicateTitle = safeExpenses.some(exp =>
     exp.title && exp.title.trim().toLowerCase() === formData.title.trim().toLowerCase()
   );
 
@@ -333,8 +333,8 @@ export default function App() {
   const isFormValid = isTitleValid && isAmountValid;
 
   const simulatedCommitted = (safeMetrics.totalCommitted || 0) + effectiveAmountToUse;
-  const simulatedPercentage = (safeMetrics.budget || 520000) > 0 
-    ? Math.min(100, Math.round((simulatedCommitted / safeMetrics.budget) * 100)) 
+  const simulatedPercentage = (safeMetrics.budget || 520000) > 0
+    ? Math.min(100, Math.round((simulatedCommitted / safeMetrics.budget) * 100))
     : 100;
 
   const handleAddSubmit = async (e) => {
@@ -366,7 +366,7 @@ export default function App() {
       actual_paid_amount: null,
       installment_current: isCuotaCategory ? Number(formData.installment_current) : null,
       installment_total: isCuotaCategory ? Number(formData.installment_total) : null,
-      notes: isCuotaCategory 
+      notes: isCuotaCategory
         ? `Precio total: $${formatMoney(totalPriceCalculated)} (${formData.installment_total} cuotas de $${formatMoney(calculatedInstallmentAmount)})`
         : (formData.notes || '')
     };
@@ -376,7 +376,7 @@ export default function App() {
     if (isCuotaCategory && Number(formData.installment_current) < Number(formData.installment_total)) {
       const nextNum = Number(formData.installment_current) + 1;
       const totalNum = Number(formData.installment_total);
-      
+
       const dueParts = selectedDueDate.split('-');
       const dYear = parseInt(dueParts[0], 10);
       const dMonth = parseInt(dueParts[1], 10);
@@ -492,8 +492,8 @@ export default function App() {
     if (!selectedExpense) return;
 
     // Si pagó a término (payment_date <= due_date), se abona el monto exacto sin recargo
-    const paidAmt = isPaidOnTime 
-      ? selectedExpense.estimated_amount 
+    const paidAmt = isPaidOnTime
+      ? selectedExpense.estimated_amount
       : (Number(payData.actual_paid_amount) || selectedExpense.estimated_amount);
 
     const updatedRaw = safeExpenses.map(exp => {
@@ -554,7 +554,7 @@ export default function App() {
 
   const handleDelete = async (id) => {
     if (!window.confirm('¿Seguro de eliminar esta obligación?')) return;
-    
+
     const updatedRaw = safeExpenses.filter(e => e.id !== id);
     const { processedExpenses, ...updatedMetrics } = recalculateDataMetrics(safeMetrics.budget, updatedRaw);
 
@@ -611,7 +611,7 @@ export default function App() {
   };
 
   const currentInstallmentOptions = Array.from(
-    { length: Number(formData.installment_total) || 1 }, 
+    { length: Number(formData.installment_total) || 1 },
     (_, i) => i + 1
   );
 
@@ -623,7 +623,7 @@ export default function App() {
           <div className="brand-icon" style={{ width: '60px', height: '60px', margin: '0 auto 16px', borderRadius: '16px' }}>
             <Wallet size={32} />
           </div>
-          
+
           <h1 style={{ fontSize: '2.1rem', fontWeight: '800', color: 'var(--text-primary)', marginBottom: '4px' }}>
             FinFix
           </h1>
@@ -637,8 +637,8 @@ export default function App() {
             </span>
           </div>
 
-          <button 
-            className="btn-primary" 
+          <button
+            className="btn-primary"
             onClick={() => setViewMode('dashboard')}
             style={{ width: '100%', justifyContent: 'center', padding: '14px 24px', fontSize: '1rem' }}
           >
@@ -660,7 +660,7 @@ export default function App() {
           </div>
           <div className="brand-title">
             <h1>
-              FinFix 
+              FinFix
               <span className="period-pill">{data?.currentPeriodName || 'Agosto 2026'}</span>
             </h1>
             <p>Sistema de Control de Gastos Mensuales</p>
@@ -692,9 +692,9 @@ export default function App() {
           <div className="metric-value">${formatMoney(safeMetrics.totalCommitted)}</div>
           <div className="health-bar-container">
             <div className="health-bar-track">
-              <div 
-                className="health-bar-fill" 
-                style={{ 
+              <div
+                className="health-bar-fill"
+                style={{
                   width: `${Math.min(100, safeMetrics.percentage || 0)}%`,
                   backgroundColor: getBarColor(safeMetrics.percentage || 0)
                 }}
@@ -797,7 +797,7 @@ export default function App() {
                     <div className="expense-meta" style={{ gap: '16px' }}>
                       <span>Categoría: {exp.category_name || 'General'}</span>
                       <span>{formatDateLabel(exp.due_date)}</span>
-                      
+
                       {/* Texto directo de prioridad coloreado sin recuadro */}
                       <span className={`prio-text prio-text-${effectivePrio}`}>
                         Prioridad {effectivePrio.toLowerCase()}
@@ -825,7 +825,7 @@ export default function App() {
                   {getStatusBadge(exp.dynamic_status)}
 
                   {exp.dynamic_status !== 'PAGADO' && (
-                    <button 
+                    <button
                       className="btn-pay"
                       onClick={() => {
                         setSelectedExpense(exp);
@@ -863,9 +863,9 @@ export default function App() {
             <form onSubmit={handleAddSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               <div className="form-group">
                 <label>Concepto *</label>
-                <input 
-                  type="text" 
-                  className="form-input" 
+                <input
+                  type="text"
+                  className="form-input"
                   placeholder="Ej: Alquiler, Expensas, Remera"
                   value={formData.title}
                   onChange={(e) => setFormData({ ...formData, title: e.target.value })}
@@ -881,7 +881,7 @@ export default function App() {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div className="form-group">
                   <label>Tipo de Gasto</label>
-                  <select 
+                  <select
                     className="form-input"
                     value={formData.expense_type}
                     onChange={(e) => setFormData({ ...formData, expense_type: e.target.value })}
@@ -893,14 +893,14 @@ export default function App() {
 
                 <div className="form-group">
                   <label>Categoría</label>
-                  <select 
+                  <select
                     className="form-input"
                     value={formData.category_id}
                     onChange={(e) => {
                       const newCatId = e.target.value;
                       const selectedCat = safeCategories.find(c => String(c.id) === String(newCatId));
-                      setFormData({ 
-                        ...formData, 
+                      setFormData({
+                        ...formData,
                         category_id: newCatId,
                         expense_type: selectedCat?.name === 'Cuota' ? 'EVENTUAL' : formData.expense_type
                       });
@@ -917,7 +917,7 @@ export default function App() {
               {!isCuotaCategory && formData.expense_type === 'FIJO' && (
                 <div className="form-group" style={{ background: 'var(--bg-subtle)', padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
                   <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-                    <input 
+                    <input
                       type="checkbox"
                       checked={formData.remember_next_month === 'YES'}
                       onChange={(e) => setFormData({ ...formData, remember_next_month: e.target.checked ? 'YES' : 'NO' })}
@@ -933,10 +933,10 @@ export default function App() {
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                     <div className="form-group">
                       <label>Precio Total del Producto ($) *</label>
-                      <input 
-                        type="number" 
+                      <input
+                        type="number"
                         min="1"
-                        className="form-input" 
+                        className="form-input"
                         placeholder="Ej: 150000"
                         value={formData.base_amount}
                         onChange={(e) => setFormData({ ...formData, base_amount: e.target.value })}
@@ -951,8 +951,8 @@ export default function App() {
                         value={formData.installment_total}
                         onChange={(e) => {
                           const newTotal = Number(e.target.value);
-                          setFormData({ 
-                            ...formData, 
+                          setFormData({
+                            ...formData,
                             installment_total: newTotal,
                             installment_current: Math.min(formData.installment_current, newTotal)
                           });
@@ -996,11 +996,11 @@ export default function App() {
                     <div className="form-group">
                       <label>% Interés Total Aplicado</label>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <input 
-                          type="number" 
-                          min="0.1" 
+                        <input
+                          type="number"
+                          min="0.1"
                           step="0.1"
-                          className="form-input" 
+                          className="form-input"
                           placeholder="Ej: 10"
                           value={formData.interest_rate}
                           onChange={(e) => setFormData({ ...formData, interest_rate: e.target.value })}
@@ -1024,10 +1024,10 @@ export default function App() {
                 {!isCuotaCategory && (
                   <div className="form-group">
                     <label>Monto ($) *</label>
-                    <input 
-                      type="number" 
+                    <input
+                      type="number"
                       min="1"
-                      className="form-input" 
+                      className="form-input"
                       placeholder="Ej: 45000"
                       value={formData.estimated_amount}
                       onChange={(e) => setFormData({ ...formData, estimated_amount: e.target.value })}
@@ -1067,9 +1067,9 @@ export default function App() {
 
               <div className="form-group">
                 <label>Notas Adicionales</label>
-                <input 
-                  type="text" 
-                  className="form-input" 
+                <input
+                  type="text"
+                  className="form-input"
                   placeholder="Ej: Pago antes del día 10"
                   value={formData.notes}
                   onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
@@ -1081,7 +1081,7 @@ export default function App() {
                   Impacto estimado en el presupuesto:
                 </div>
                 <div className="health-bar-track">
-                  <div 
+                  <div
                     className="health-bar-fill"
                     style={{ width: `${simulatedPercentage}%`, backgroundColor: getBarColor(simulatedPercentage) }}
                   />
@@ -1093,7 +1093,7 @@ export default function App() {
 
               <div className="modal-actions">
                 <button type="button" className="btn-secondary" onClick={() => setShowAddModal(false)}>Cancelar</button>
-                <button type="submit" className="btn-primary" disabled={!isFormValid}>Guardar Obligación</button>
+                <button type="submit" className="btn-primary" disabled={!isFormValid}>Crear Gasto</button>
               </div>
             </form>
           </div>
@@ -1132,8 +1132,8 @@ export default function App() {
 
               <div className="form-group">
                 <label>Monto a Abonar ($)</label>
-                <input 
-                  type="number" 
+                <input
+                  type="number"
                   className="form-input"
                   value={isPaidOnTime ? selectedExpense.estimated_amount : payData.actual_paid_amount}
                   onChange={(e) => setPayData({ ...payData, actual_paid_amount: e.target.value })}
@@ -1157,8 +1157,8 @@ export default function App() {
 
               <div className="form-group">
                 <label>Comprobante / Observaciones</label>
-                <input 
-                  type="text" 
+                <input
+                  type="text"
                   className="form-input"
                   placeholder="Ej: Transferencia Banco N° 89123"
                   value={payData.note}
@@ -1168,8 +1168,8 @@ export default function App() {
 
               <div className="modal-actions">
                 <button type="button" className="btn-secondary" onClick={() => setShowPayModal(false)}>Cancelar</button>
-                <button 
-                  type="submit" 
+                <button
+                  type="submit"
                   className="btn-primary"
                   disabled={!isPaidOnTime && Number(payData.actual_paid_amount) < selectedExpense.estimated_amount}
                 >
@@ -1192,8 +1192,8 @@ export default function App() {
             <form onSubmit={handleUpdateBudget} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               <div className="form-group">
                 <label>Nuevo Presupuesto Total ($)</label>
-                <input 
-                  type="number" 
+                <input
+                  type="number"
                   className="form-input"
                   value={newBudget}
                   onChange={(e) => setNewBudget(e.target.value)}
