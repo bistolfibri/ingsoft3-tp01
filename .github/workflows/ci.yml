@@ -1,7 +1,5 @@
-# Nombre del pipeline que aparece arriba en la pestaña Actions de GitHub
 name: CI
 
-# Disparadores: Se ejecuta automáticamente en Pull Requests y en pushes a main
 on:
   pull_request:
     branches: [main]
@@ -14,16 +12,10 @@ jobs:
   # =========================================================================
   build-backend:
     runs-on: ubuntu-latest
-    # Mínimo Privilegio: Solo le damos permiso de escribir paquetes a este job
     permissions:
       contents: read
       packages: write
     steps:
-      - name: Qué estamos verificando
-        env:
-          RAMA: ${{ github.head_ref || github.ref_name }}
-        run: echo "Rama $RAMA · commit $GITHUB_SHA"
-
       - name: Bajar el código al runner
         uses: actions/checkout@v4
 
@@ -36,18 +28,17 @@ jobs:
         run: npm ci
         working-directory: ./backend
 
-      - name: Ejecutar Unit Tests y Medir Cobertura del Backend
+      - name: Ejecutar Unit Tests y Cobertura del Backend
         run: npm run test:coverage
         working-directory: ./backend
 
-      - name: Subir Reporte de Cobertura del Backend como Artefacto
+      - name: Subir Reporte de Cobertura del Backend
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: coverage-backend
           path: ./backend/coverage
 
-      # Autenticación en GitHub Packages (Solo se ejecuta cuando entra a main)
       - name: Entrar al registry (ghcr.io)
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: docker/login-action@v4
@@ -56,16 +47,15 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Preparar el constructor que sabe cachear
-        uses: docker/setup-buildx-action@v4
+      - name: Preparar constructor Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-      # EL ÚLTIMO PASO: Construye y publica la imagen en ghcr.io etiquetada con el SHA del commit
-      - name: Construir y publicar la imagen del backend
+      - name: Construir y publicar imagen del Backend (Solo en main)
         uses: docker/build-push-action@v7
         with:
           context: ./backend
           push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
-          tags: ghcr.io/bistolfibri/ingsoft3-tp01-backend:sha-${{ github.sha }}
+          tags: ghcr.io/${{ github.repository }}-backend:sha-${{ github.sha }}
           cache-from: type=gha,scope=backend
           cache-to: type=gha,mode=max,scope=backend
 
@@ -78,11 +68,6 @@ jobs:
       contents: read
       packages: write
     steps:
-      - name: Qué estamos verificando
-        env:
-          RAMA: ${{ github.head_ref || github.ref_name }}
-        run: echo "Rama $RAMA · commit $GITHUB_SHA"
-
       - name: Bajar el código al runner
         uses: actions/checkout@v4
 
@@ -95,11 +80,11 @@ jobs:
         run: npm ci
         working-directory: ./frontend
 
-      - name: Ejecutar Unit Tests y Medir Cobertura del Frontend
+      - name: Ejecutar Unit Tests y Cobertura del Frontend
         run: npm run test:coverage
         working-directory: ./frontend
 
-      - name: Subir Reporte de Cobertura del Frontend como Artefacto
+      - name: Subir Reporte de Cobertura del Frontend
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -114,46 +99,47 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Preparar el constructor que sabe cachear
-        uses: docker/setup-buildx-action@v4
+      - name: Preparar constructor Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-      - name: Construir y publicar la imagen del frontend
+      - name: Construir y publicar imagen del Frontend (Solo en main)
         uses: docker/build-push-action@v7
         with:
           context: ./frontend
           push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
-          tags: ghcr.io/bistolfibri/ingsoft3-tp01-frontend:sha-${{ github.sha }}
+          tags: ghcr.io/${{ github.repository }}-frontend:sha-${{ github.sha }}
           cache-from: type=gha,scope=frontend
           cache-to: type=gha,mode=max,scope=frontend
 
   # =========================================================================
-  # JOB 3: DESPLIEGUE AUTOMÁTICO AL ENTORNO DE QA
+  # JOB 3: DESPLIEGUE AUTOMÁTICO EN ENTORNO QA (PULL Y EXECUTE DE GHCR)
   # =========================================================================
   deploy-qa:
-    runs-on: ubuntu-latest
-    needs: [build-backend, build-frontend] # Solo corre si los 2 jobs anteriores pasaron
-    if: github.ref == 'refs/heads/main' # Solo corre en pushes a main (los PRs no despliegan)
-    environment: qa # Conecta con el entorno qa de GitHub
+    runs-on: self-hosted
+    needs: [build-backend, build-frontend]
+    if: github.ref == 'refs/heads/main'
+    environment: qa
     env:
       DB_PASSWORD: postgres123
+      IMAGE_TAG: sha-${{ github.sha }}
     steps:
-      - name: Bajar el código al runner
+      - name: Bajar código al runner
         uses: actions/checkout@v4
 
-      - name: Levantar Entorno QA con Compose
-        run: docker compose -f compose.qa.yml up -d --build
+      - name: Levantar Entorno QA con la Imagen Inmutable de GHCR
+        run: docker compose -f compose.qa.yml up -d
 
-      - name: Smoke Test QA (Comprobación de vida en loop con curl)
+      - name: Smoke Test QA (Comprobación de respuesta)
         shell: bash
         env:
           URL_API: http://localhost:8080
           URL_FRONT: http://localhost:3000
         run: |
-          echo "Esperando a que QA esté vivo..."
+          echo "Esperando a que QA responda..."
           for i in $(seq 1 30); do
             if curl -fsS --max-time 10 "$URL_API/api/dashboard" > /dev/null \
                && curl -fsS --max-time 10 "$URL_FRONT/" > /dev/null; then
-              echo "✅ QA responde correctamente (API + BD + Front)"
+              echo "✅ QA responde correctamente"
               exit 0
             fi
             sleep 5
@@ -162,35 +148,104 @@ jobs:
           exit 1
 
   # =========================================================================
-  # JOB 4: DESPLIEGUE A PRODUCCIÓN CON APROBACIÓN MANUAL (GATE HUMANO)
+  # JOB 4: PRUEBAS DE INTEGRACIÓN CONTRA LA API DE QA (SIN NAVEGADOR)
+  # =========================================================================
+  integracion:
+    runs-on: self-hosted
+    needs: deploy-qa
+    timeout-minutes: 15
+    steps:
+      - name: Bajar código al runner
+        uses: actions/checkout@v4
+
+      - name: Instalar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Instalar dependencias del frontend (sin browser)
+        run: npm ci
+        working-directory: ./frontend
+
+      - name: Ejecutar Pruebas de Integración contra la API de QA
+        env:
+          API_BASE_URL: http://localhost:8080
+        run: npx playwright test e2e/api.spec.js
+        working-directory: ./frontend
+
+      - name: Subir Reporte de Integración como Artefacto
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-integracion
+          path: frontend/playwright-report
+
+  # =========================================================================
+  # JOB 5: PRUEBAS END-TO-END (E2E) CON CHROMIUM CONTRA QA
+  # =========================================================================
+  e2e:
+    runs-on: self-hosted
+    needs: integracion # Solo corre si la Integración dio VERDE
+    timeout-minutes: 20
+    steps:
+      - name: Bajar código al runner
+        uses: actions/checkout@v4
+
+      - name: Instalar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Instalar dependencias y Chromium de Playwright
+        run: |
+          npm ci
+          npx playwright install chromium
+        working-directory: ./frontend
+
+      - name: Ejecutar Pruebas E2E de UI contra el Frontend de QA
+        env:
+          E2E_BASE_URL: http://localhost:3000
+        run: npx playwright test e2e/gastos.spec.js
+        working-directory: ./frontend
+
+      - name: Subir Reporte E2E como Artefacto
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-e2e
+          path: frontend/playwright-report
+
+  # =========================================================================
+  # JOB 6: DESPLIEGUE EN PRODUCCIÓN (GATE HUMANO DE APROBACIÓN)
   # =========================================================================
   deploy-prod:
-    runs-on: ubuntu-latest
-    needs: deploy-qa # Solo corre si QA se desplegó y el smoke test dio verde
-    environment: production # ⏸ ACÁ EL PIPELINE SE PAUSA HASTA TU APROBACIÓN MANUAL
+    runs-on: self-hosted
+    needs: e2e # Solo se habilita si las Pruebas E2E dieron VERDE
+    environment: production # ⏸ PAUSADO ESPERANDO APROBACIÓN MANUAL
     concurrency:
       group: deploy-prod
       cancel-in-progress: false
     env:
       DB_PASSWORD: postgres123
+      IMAGE_TAG: sha-${{ github.sha }}
     steps:
-      - name: Bajar el código al runner
+      - name: Bajar código al runner
         uses: actions/checkout@v4
 
-      - name: Levantar Entorno PROD con Compose
-        run: docker compose -f compose.prod.yml up -d --build
+      - name: Levantar Entorno PROD con la MISMA Imagen de GHCR
+        run: docker compose -f compose.prod.yml up -d
 
-      - name: Smoke Test PROD (Comprobación de vida en loop con curl)
+      - name: Smoke Test PROD (Comprobación de respuesta)
         shell: bash
         env:
           URL_API: http://localhost:8081
           URL_FRONT: http://localhost:3001
         run: |
-          echo "Esperando a que PROD esté vivo..."
+          echo "Esperando a que PROD responda..."
           for i in $(seq 1 30); do
             if curl -fsS --max-time 10 "$URL_API/api/dashboard" > /dev/null \
                && curl -fsS --max-time 10 "$URL_FRONT/" > /dev/null; then
-              echo "✅ PROD responde correctamente (API + BD + Front)"
+              echo "✅ PROD responde correctamente"
               exit 0
             fi
             sleep 5

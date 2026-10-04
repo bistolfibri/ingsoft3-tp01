@@ -1,15 +1,15 @@
-# Nombre de proyecto aislado en Compose (Crucial para que no choque con QA)
+# Nombre de proyecto aislado en Compose (Crucial para no chocar con QA)
 name: prod
 
 services:
-  # Base de datos PostgreSQL propia del entorno de Producción
+  # Base de datos PostgreSQL aislada de Producción
   db:
     image: postgres:16-alpine
     environment:
       POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres123}
-      POSTGRES_DB: app_prod # Base de datos aislada de Producción
+      POSTGRES_DB: app_prod
     volumes:
-      - db_data_prod:/var/lib/postgresql/data # Volumen de disco propio de Producción
+      - db_data_prod:/var/lib/postgresql/data
       - ./database/schema.sql:/docker-entrypoint-initdb.d/1_schema.sql
       - ./database/seed.sql:/docker-entrypoint-initdb.d/2_seed.sql
     healthcheck:
@@ -17,9 +17,9 @@ services:
       interval: 5s
       retries: 10
 
-  # Backend de Producción
+  # Backend PROD: Consume exactamente la MISMA imagen de ghcr.io que pasó por QA
   backend:
-    build: ./backend
+    image: ghcr.io/bistolfibri/ingsoft3-tp01-backend:${IMAGE_TAG:-latest}
     environment:
       DB_HOST: db
       DB_PORT: 5432
@@ -28,21 +28,22 @@ services:
       DB_PASSWORD: ${DB_PASSWORD:-postgres123}
       PORT: 3001
     ports:
-      - "8081:3001" # Puerto 8081 en tu máquina para la API de Producción
+      - "8081:3001" # API de PROD en http://localhost:8081
     depends_on:
       db:
         condition: service_healthy
 
-  # Frontend de Producción
+  # Frontend PROD: Consume la MISMA imagen de Frontend
   frontend:
-    build: ./frontend
+    image: ghcr.io/bistolfibri/ingsoft3-tp01-frontend:${IMAGE_TAG:-latest}
     environment:
-      BACKEND_URL: http://backend:3001 # Nginx redirige las llamadas a la API de Producción
+      BACKEND_URL: http://backend:3001
       DNS_RESOLVER: 127.0.0.11
     ports:
-      - "3001:80" # Puerto 3001 en tu máquina para la web de Producción
+      - "3001:80" # Web de PROD en http://localhost:3001
     depends_on:
       - backend
 
 volumes:
   db_data_prod:
+  
