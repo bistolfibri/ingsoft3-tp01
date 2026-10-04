@@ -115,7 +115,7 @@ jobs:
   # JOB 3: DESPLIEGUE AUTOMÁTICO EN ENTORNO QA (PULL Y EXECUTE DE GHCR)
   # =========================================================================
   deploy-qa:
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     needs: [build-backend, build-frontend]
     if: github.ref == 'refs/heads/main'
     environment: qa
@@ -151,7 +151,7 @@ jobs:
   # JOB 4: PRUEBAS DE INTEGRACIÓN CONTRA LA API DE QA (SIN NAVEGADOR)
   # =========================================================================
   integracion:
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     needs: deploy-qa
     timeout-minutes: 15
     steps:
@@ -184,8 +184,8 @@ jobs:
   # JOB 5: PRUEBAS END-TO-END (E2E) CON CHROMIUM CONTRA QA
   # =========================================================================
   e2e:
-    runs-on: self-hosted
-    needs: integracion # Solo corre si la Integración dio VERDE
+    runs-on: ubuntu-latest
+    needs: integracion
     timeout-minutes: 20
     steps:
       - name: Bajar código al runner
@@ -219,8 +219,8 @@ jobs:
   # JOB 6: DESPLIEGUE EN PRODUCCIÓN (GATE HUMANO DE APROBACIÓN)
   # =========================================================================
   deploy-prod:
-    runs-on: self-hosted
-    needs: e2e # Solo se habilita si las Pruebas E2E dieron VERDE
+    runs-on: ubuntu-latest
+    needs: e2e
     environment: production # ⏸ PAUSADO ESPERANDO APROBACIÓN MANUAL
     concurrency:
       group: deploy-prod
