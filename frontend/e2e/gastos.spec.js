@@ -44,11 +44,9 @@ test.describe('Suite 2: Pruebas End-to-End (E2E de Interfaz de Usuario con Chrom
         await page.getByPlaceholder(/Ej: Alquiler/i).fill('');
         await page.getByPlaceholder(/Ej: 45000/i).fill('10000');
 
-        // Apuntamos EXACTAMENTE al botón del modal "Guardar Obligación"
+        // Apuntamos al botón del modal "Guardar Obligación" y verificamos que está deshabilitado
         const btnGuardar = page.getByRole('button', { name: 'Guardar Obligación' });
-        if (await btnGuardar.isEnabled()) {
-            await btnGuardar.click();
-        }
+        await expect(btnGuardar).toBeDisabled();
 
         // El modal debe permanecer abierto
         await expect(page.getByPlaceholder(/Ej: Alquiler/i)).toBeVisible();
