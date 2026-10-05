@@ -34,7 +34,7 @@ test.describe('Suite 2: Pruebas End-to-End (E2E de Interfaz de Usuario con Chrom
         await page.getByRole('button', { name: 'Guardar Obligación' }).click();
 
         // 3. Verificar que aparece en la lista de la UI
-        await expect(page.getByText(tituloUnico)).toBeVisible();
+        await expect(page.getByText(tituloUnico).first()).toBeVisible();
 
         // 4. Limpieza: Eliminar el gasto recién creado
         const btnDelete = page.locator('.btn-delete').last();
