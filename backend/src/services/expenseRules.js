@@ -219,3 +219,43 @@ export function calcularDescuentoAntiguedad(antiguedadAnios, montoGasto) {
     montoFinal: montoGasto - descuento
   };
 }
+
+/**
+ * Función sin tests para la demostración del PR abierto en rojo (30 líneas)
+ */
+export function evaluarRiesgoCrediticioYPromociones(scoreCliente, historialPagos, montoGasto) {
+  if (!scoreCliente || scoreCliente <= 0) {
+    return { evaluado: false, riesgo: 'DESCONOCIDO', limitePermitido: 0, aplicaPromocion: false };
+  }
+  let riesgo = 'BAJO';
+  let limitePermitido = montoGasto * 2;
+  let aplicaPromocion = false;
+
+  if (scoreCliente < 300) {
+    riesgo = 'CRITICO';
+    limitePermitido = montoGasto * 0.5;
+  } else if (scoreCliente < 600) {
+    riesgo = 'MEDIO';
+    limitePermitido = montoGasto * 1.2;
+  } else if (scoreCliente >= 800) {
+    riesgo = 'EXCELENTE';
+    limitePermitido = montoGasto * 3;
+    aplicaPromocion = true;
+  }
+
+  if (historialPagos && Array.isArray(historialPagos)) {
+    const pagosMora = historialPagos.filter(p => p.isOverduePayment);
+    if (pagosMora.length > 3) {
+      riesgo = 'ALTO';
+      aplicaPromocion = false;
+    }
+  }
+
+  return {
+    evaluado: true,
+    riesgo,
+    limitePermitido,
+    aplicaPromocion
+  };
+}
+
