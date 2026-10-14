@@ -31,16 +31,38 @@ test.describe('Suite 2: Pruebas End-to-End (E2E de Interfaz de Usuario con Chrom
         // 2. Llenar formulario y guardar
         await page.getByPlaceholder(/Ej: Alquiler/i).fill(tituloUnico);
         await page.getByPlaceholder(/Ej: 45000/i).fill('35000');
+        // Desmarcar "recordar para el próximo mes" para que NO se cree un segundo gasto automático
+        await page.getByRole('checkbox').uncheck();
         await page.getByRole('button', { name: 'Guardar Obligación' }).click();
 
-        // 3. Verificar que aparece en la lista de la UI
-        await expect(page.getByText(tituloUnico).first()).toBeVisible();
+        // Locators por título EXACTO (evita confundirse con otros gastos de la lista)
+        const titulo = page.getByRole('heading', { name: tituloUnico, exact: true });
+        const fila = page.locator('.expense-item').filter({ has: titulo });
 
-        // 4. Limpieza: Eliminar el gasto recién creado
-        const btnDelete = page.locator('.btn-delete').last();
-        if (await btnDelete.isVisible()) {
-            await btnDelete.click();
+        // 3. Verificar que aparece en la lista de la UI
+        await expect(titulo).toBeVisible();
+
+        // 4. Verificar que se GUARDÓ DE VERDAD en la base: al recargar la página sigue estando
+        await page.reload();
+        const btnVer2 = page.getByRole('button', { name: /Ver Mis Gastos/i });
+        if (await btnVer2.isVisible()) {
+            await btnVer2.click();
         }
+        await expect(titulo).toBeVisible();
+
+        // 5. Eliminar: Playwright por defecto CANCELA los window.confirm, hay que aceptarlo
+        page.once('dialog', dialog => dialog.accept());
+        await fila.locator('.btn-delete').click();
+        await expect(titulo).toHaveCount(0);
+
+        // 6. Verificar que se borró de la base: al recargar sigue sin estar
+        await page.reload();
+        const btnVer3 = page.getByRole('button', { name: /Ver Mis Gastos/i });
+        if (await btnVer3.isVisible()) {
+            await btnVer3.click();
+        }
+        await expect(page.getByRole('button', { name: /Agregar Obligación/i })).toBeVisible();
+        await expect(titulo).toHaveCount(0);
     });
 
     test('3. Validación de UI: Título vacío no debe permitir procesar la obligación', async ({ page }) => {
