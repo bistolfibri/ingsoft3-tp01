@@ -33,11 +33,9 @@ const CATEGORY_ICONS = {
   'wallet': Wallet
 };
 
-const DEFAULT_CATEGORIES = [
-  { id: 1, name: 'Vivienda', icon: 'home', color: '#E06D53' },
-  { id: 2, name: 'Servicios', icon: 'zap', color: '#D97706' },
-  { id: 3, name: 'Cuota', icon: 'credit-card', color: '#6366F1' },
-  { id: 4, name: 'Entretenimiento', icon: 'tv', color: '#8B5CF6' }
+const MONTH_NAMES = [
+  'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+  'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
 ];
 
 // Formateador numérico argentino con punto para miles (ej: 5.000, 50.000, 150.000)
@@ -46,73 +44,27 @@ const formatMoney = (val) => {
   return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
 };
 
-const DEFAULT_DATA = {
-  currentPeriodName: 'Agosto 2026',
+// Estado vacío inicial: los datos reales (categorías, gastos, presupuesto) vienen SIEMPRE de la API/base de datos.
+const EMPTY_DATA = {
+  currentPeriodName: '',
   metrics: {
-    budget: 950000,
-    totalFixedCommitted: 294200,
-    totalEventualCommitted: 55000,
-    totalCommitted: 349200,
-    totalPaid: 55000,
-    available: 600800,
-    percentage: 37,
+    budget: 0,
+    totalFixedCommitted: 0,
+    totalEventualCommitted: 0,
+    totalCommitted: 0,
+    totalPaid: 0,
+    available: 0,
+    percentage: 0,
     status: 'NORMAL'
   },
-  categories: DEFAULT_CATEGORIES,
-  expenses: [
-    {
-      id: 1,
-      title: 'Alquiler Departamento',
-      category_id: 1,
-      category_name: 'Vivienda',
-      category_icon: 'home',
-      expense_type: 'FIJO',
-      estimated_amount: 280000,
-      due_date: '2026-08-10',
-      priority: 'ALTA',
-      status: 'PENDIENTE',
-      dynamic_status: 'PENDIENTE',
-      actual_paid_amount: null,
-      notes: 'Transferencia al dueño antes del 10'
-    },
-    {
-      id: 2,
-      title: 'Aguas Cordobesas',
-      category_id: 2,
-      category_name: 'Servicios',
-      category_icon: 'zap',
-      expense_type: 'FIJO',
-      estimated_amount: 14200,
-      due_date: '2026-08-28',
-      priority: 'MEDIA',
-      status: 'PENDIENTE',
-      dynamic_status: 'PENDIENTE',
-      actual_paid_amount: null,
-      notes: 'Factura de agua del mes (vence a fin de mes)'
-    },
-    {
-      id: 3,
-      title: 'Remera Deportiva (Cuota 1/3)',
-      category_id: 3,
-      category_name: 'Cuota',
-      category_icon: 'credit-card',
-      expense_type: 'EVENTUAL',
-      estimated_amount: 55000,
-      due_date: '2026-08-18',
-      priority: 'BAJA',
-      status: 'PAGADO',
-      dynamic_status: 'PAGADO',
-      actual_paid_amount: 55000,
-      installment_current: 1,
-      installment_total: 3,
-      notes: 'Cuota 1 de 3 abonada a término'
-    }
-  ]
+  categories: [],
+  expenses: []
 };
 
 export default function App() {
   const [viewMode, setViewMode] = useState('welcome');
-  const [data, setData] = useState(DEFAULT_DATA);
+  const [data, setData] = useState(EMPTY_DATA);
+  const [loadError, setLoadError] = useState(null);
   const [filter, setFilter] = useState('TODOS');
   const [loading, setLoading] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -270,22 +222,19 @@ export default function App() {
   const loadData = async () => {
     try {
       setLoading(true);
+      setLoadError(null);
       const res = await fetchDashboard();
-      if (res && res.expenses) {
-        const { processedExpenses, ...metrics } = recalculateDataMetrics(res.metrics?.budget || res.budget || 520000, res.expenses);
-        setData({
-          ...res,
-          categories: DEFAULT_CATEGORIES,
-          expenses: processedExpenses,
-          metrics
-        });
-      } else {
-        const { processedExpenses, ...metrics } = recalculateDataMetrics(DEFAULT_DATA.metrics.budget, DEFAULT_DATA.expenses);
-        setData({ ...DEFAULT_DATA, expenses: processedExpenses, metrics });
-      }
+      const { processedExpenses, ...metrics } = recalculateDataMetrics(res.metrics?.budget || 0, res.expenses || []);
+      setData({
+        ...res,
+        categories: res.categories || [],
+        expenses: processedExpenses,
+        metrics
+      });
     } catch (err) {
-      const { processedExpenses, ...metrics } = recalculateDataMetrics(DEFAULT_DATA.metrics.budget, DEFAULT_DATA.expenses);
-      setData({ ...DEFAULT_DATA, expenses: processedExpenses, metrics });
+      // Sin datos inventados: si la API falla, se informa el error.
+      setLoadError(err.message || 'No se pudo conectar con el servidor');
+      setData(EMPTY_DATA);
     } finally {
       setLoading(false);
     }
@@ -295,9 +244,9 @@ export default function App() {
     loadData();
   }, []);
 
-  const safeExpenses = data?.expenses || DEFAULT_DATA.expenses;
-  const safeCategories = DEFAULT_CATEGORIES;
-  const safeMetrics = data?.metrics || DEFAULT_DATA.metrics;
+  const safeExpenses = data?.expenses || EMPTY_DATA.expenses;
+  const safeCategories = data?.categories || EMPTY_DATA.categories;
+  const safeMetrics = data?.metrics || EMPTY_DATA.metrics;
 
   const currentViewableExpenses = safeExpenses.filter(e => {
     if (e.dynamic_status === 'VENCIDO') return true;
@@ -341,129 +290,70 @@ export default function App() {
     e.preventDefault();
     if (!isFormValid) return;
 
-    const catObj = safeCategories.find(c => String(c.id) === String(formData.category_id)) || safeCategories[0];
     let titleText = formData.title.trim();
 
     if (isCuotaCategory && !titleText.includes('Cuota')) {
       titleText = `${titleText} (Cuota ${formData.installment_current}/${formData.installment_total})`;
     }
 
-    const { status: initStatus, priority: initPriority } = computeStatusAndPriority(selectedDueDate, false);
-
-    const newExpItem = {
-      id: Date.now(),
+    // Se arma la lista de obligaciones a guardar. Ninguna se muestra hasta que el backend
+    // confirme que se guardó: la pantalla siempre refleja lo que hay en la base de datos.
+    const toCreate = [{
       title: titleText,
       category_id: Number(formData.category_id),
-      category_name: catObj.name,
-      category_icon: catObj.icon || 'wallet',
       expense_type: isCuotaCategory ? 'EVENTUAL' : (formData.expense_type === 'EVENTUAL' ? 'EVENTUAL' : 'FIJO'),
       estimated_amount: effectiveAmountToUse,
       due_date: selectedDueDate,
-      priority: initPriority,
-      status: 'PENDIENTE',
-      dynamic_status: initStatus,
-      effective_priority: initPriority,
-      actual_paid_amount: null,
-      installment_current: isCuotaCategory ? Number(formData.installment_current) : null,
-      installment_total: isCuotaCategory ? Number(formData.installment_total) : null,
       notes: isCuotaCategory
         ? `Precio total: $${formatMoney(totalPriceCalculated)} (${formData.installment_total} cuotas de $${formatMoney(calculatedInstallmentAmount)})`
         : (formData.notes || '')
-    };
+    }];
 
-    let updatedList = [newExpItem, ...safeExpenses];
+    // Fecha del mes siguiente (mismo día)
+    const [dYear, dMonth, dDay] = selectedDueDate.split('-');
+    let nextYear = parseInt(dYear, 10);
+    let nextMonth = parseInt(dMonth, 10) + 1;
+    if (nextMonth > 12) {
+      nextMonth = 1;
+      nextYear += 1;
+    }
+    const nextDueDateStr = `${nextYear}-${String(nextMonth).padStart(2, '0')}-${dDay}`;
 
     if (isCuotaCategory && Number(formData.installment_current) < Number(formData.installment_total)) {
       const nextNum = Number(formData.installment_current) + 1;
       const totalNum = Number(formData.installment_total);
-
-      const dueParts = selectedDueDate.split('-');
-      const dYear = parseInt(dueParts[0], 10);
-      const dMonth = parseInt(dueParts[1], 10);
-      const dDay = dueParts[2];
-
-      let nextYear = dYear;
-      let nextMonth = dMonth + 1;
-      if (nextMonth > 12) {
-        nextMonth = 1;
-        nextYear += 1;
-      }
-
-      const nextDueDateStr = `${nextYear}-${String(nextMonth).padStart(2, '0')}-${dDay}`;
       const cleanBaseConcept = formData.title.trim().replace(/\s*\(Cuota \d+\/\d+\)/, '');
 
-      const { status: nextInitStatus, priority: nextInitPriority } = computeStatusAndPriority(nextDueDateStr, false);
-
-      const nextCuotaItem = {
-        id: Date.now() + 1,
+      toCreate.push({
         title: `${cleanBaseConcept} (Cuota ${nextNum}/${totalNum})`,
         category_id: Number(formData.category_id),
-        category_name: catObj.name,
-        category_icon: catObj.icon || 'wallet',
         expense_type: 'EVENTUAL',
         estimated_amount: calculatedInstallmentAmount,
         due_date: nextDueDateStr,
-        priority: nextInitPriority,
-        status: 'PENDIENTE',
-        dynamic_status: nextInitStatus,
-        effective_priority: nextInitPriority,
-        actual_paid_amount: null,
-        installment_current: nextNum,
-        installment_total: totalNum,
         notes: `Programado para el mes correspondiente ($${formatMoney(calculatedInstallmentAmount)})`
-      };
-
-      updatedList = [nextCuotaItem, ...updatedList];
+      });
     }
 
     if (!isCuotaCategory && formData.expense_type === 'FIJO' && formData.remember_next_month === 'YES') {
-      const dueParts = selectedDueDate.split('-');
-      const dYear = parseInt(dueParts[0], 10);
-      const dMonth = parseInt(dueParts[1], 10);
-      const dDay = dueParts[2];
-
-      let nextYear = dYear;
-      let nextMonth = dMonth + 1;
-      if (nextMonth > 12) {
-        nextMonth = 1;
-        nextYear += 1;
-      }
-
-      const nextDueDateStr = `${nextYear}-${String(nextMonth).padStart(2, '0')}-${dDay}`;
-      const { status: nextFixedStatus, priority: nextFixedPriority } = computeStatusAndPriority(nextDueDateStr, false);
-
-      const nextFixedItem = {
-        id: Date.now() + 2,
-        title: `${formData.title.trim()} (Septiembre)`,
+      const nextMonthName = MONTH_NAMES[nextMonth - 1];
+      toCreate.push({
+        title: `${formData.title.trim()} (${nextMonthName})`,
         category_id: Number(formData.category_id),
-        category_name: catObj.name,
-        category_icon: catObj.icon || 'wallet',
         expense_type: 'FIJO',
         estimated_amount: Number(formData.estimated_amount),
         due_date: nextDueDateStr,
-        priority: nextFixedPriority,
-        status: 'PENDIENTE',
-        dynamic_status: nextFixedStatus,
-        effective_priority: nextFixedPriority,
-        actual_paid_amount: null,
-        notes: 'Recordatorio automático para Septiembre (monto editable)'
-      };
-
-      updatedList = [nextFixedItem, ...updatedList];
+        notes: `Recordatorio automático para ${nextMonthName} (monto editable)`
+      });
     }
 
-    const { processedExpenses, ...updatedMetrics } = recalculateDataMetrics(safeMetrics.budget, updatedList);
-
-    setData(prev => ({
-      ...prev,
-      expenses: processedExpenses,
-      metrics: updatedMetrics
-    }));
-
     try {
-      await createExpense(newExpItem);
+      for (const item of toCreate) {
+        await createExpense(item);
+      }
     } catch (err) {
-      console.warn('Guardado en memoria local:', err.message);
+      alert(`No se pudo guardar la obligación: ${err.message}`);
+      await loadData();
+      return;
     }
 
     setShowAddModal(false);
@@ -480,6 +370,7 @@ export default function App() {
       interest_rate: '10',
       remember_next_month: 'YES'
     });
+    await loadData();
   };
 
   // Comparación inteligente de fecha efectiva de pago vs fecha de vencimiento
@@ -496,38 +387,18 @@ export default function App() {
       ? selectedExpense.estimated_amount
       : (Number(payData.actual_paid_amount) || selectedExpense.estimated_amount);
 
-    const updatedRaw = safeExpenses.map(exp => {
-      if (exp.id === selectedExpense.id) {
-        return {
-          ...exp,
-          status: 'PAGADO',
-          dynamic_status: 'PAGADO',
-          actual_paid_amount: paidAmt,
-          paid_at: selectedPayDateStr
-        };
-      }
-      return exp;
-    });
-
-    const { processedExpenses, ...updatedMetrics } = recalculateDataMetrics(safeMetrics.budget, updatedRaw);
-
-    setData(prev => ({
-      ...prev,
-      expenses: processedExpenses,
-      metrics: updatedMetrics
-    }));
-
     try {
       const res = await payExpense(selectedExpense.id, { ...payData, actual_paid_amount: paidAmt, payment_date: selectedPayDateStr });
       if (res && res.surchargeAmount > 0) {
         alert(`ℹ️ Pago registrado con recargo por mora: +$${formatMoney(res.surchargeAmount)}. Este recargo se descontó de tu saldo libre.`);
       }
     } catch (err) {
-      console.warn('Pago actualizado en memoria local');
+      alert(`No se pudo registrar el pago: ${err.message}`);
     }
 
     setShowPayModal(false);
     setSelectedExpense(null);
+    await loadData();
   };
 
   const handleUpdateBudget = async (e) => {
@@ -535,40 +406,25 @@ export default function App() {
     const amount = Number(newBudget);
     if (isNaN(amount) || amount <= 0) return;
 
-    const { processedExpenses, ...updatedMetrics } = recalculateDataMetrics(amount, safeExpenses);
-
-    setData(prev => ({
-      ...prev,
-      expenses: processedExpenses,
-      metrics: updatedMetrics
-    }));
-
     try {
       await updateBudget(amount);
     } catch (err) {
-      console.warn('Presupuesto actualizado localmente');
+      alert(`No se pudo actualizar el presupuesto: ${err.message}`);
     }
 
     setShowBudgetModal(false);
+    await loadData();
   };
 
   const handleDelete = async (id) => {
     if (!window.confirm('¿Seguro de eliminar esta obligación?')) return;
 
-    const updatedRaw = safeExpenses.filter(e => e.id !== id);
-    const { processedExpenses, ...updatedMetrics } = recalculateDataMetrics(safeMetrics.budget, updatedRaw);
-
-    setData(prev => ({
-      ...prev,
-      expenses: processedExpenses,
-      metrics: updatedMetrics
-    }));
-
     try {
       await deleteExpense(id);
     } catch (err) {
-      console.warn('Eliminado localmente');
+      alert(`No se pudo eliminar: ${err.message}`);
     }
+    await loadData();
   };
 
   const filteredExpenses = currentViewableExpenses.filter(exp => {
@@ -772,6 +628,12 @@ export default function App() {
       </div>
 
       {/* Expenses List */}
+      {loadError && (
+        <div role="alert" style={{ textAlign: 'center', padding: '16px', marginBottom: '16px', color: '#B91C1C', background: '#FEF2F2', borderRadius: 'var(--radius-md)', border: '1px solid #FECACA' }}>
+          No se pudieron cargar los datos del servidor: {loadError}
+        </div>
+      )}
+
       <div className="expenses-list">
         {loading ? (
           <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-secondary)' }}>
