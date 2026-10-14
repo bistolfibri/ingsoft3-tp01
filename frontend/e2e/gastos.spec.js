@@ -86,4 +86,20 @@ test.describe('Suite 2: Pruebas End-to-End (E2E de Interfaz de Usuario con Chrom
         await expect(page.getByPlaceholder(/Ej: Alquiler/i)).toBeVisible();
     });
 
+    test('4. Fechas dinámicas: el selector de vencimientos se arma desde la fecha actual (no está fijo)', async ({ page }) => {
+        // Se "viaja" a mediados de diciembre de 2026: el rango debe ser nov-2026 .. feb-2027
+        await page.clock.setFixedTime(new Date('2026-12-15T10:00:00'));
+        await page.goto('/');
+        const btnVer = page.getByRole('button', { name: /Ver Mis Gastos/i });
+        if (await btnVer.isVisible()) {
+            await btnVer.click();
+        }
+
+        await page.getByRole('button', { name: /Agregar Obligación/i }).click();
+
+        const selectorMes = page.locator('select', { has: page.locator('option', { hasText: 'Enero 2027' }) });
+        await expect(selectorMes).toContainText(['Noviembre 2026', 'Diciembre 2026', 'Enero 2027', 'Febrero 2027'].join(''));
+        await expect(selectorMes).not.toContainText('Agosto 2026');
+    });
+
 });

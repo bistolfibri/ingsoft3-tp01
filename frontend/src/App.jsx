@@ -78,20 +78,24 @@ export default function App() {
   const monthPad = String(todayObj.getMonth() + 1).padStart(2, '0');
   const dayPad = String(todayObj.getDate()).padStart(2, '0');
   const todayStr = `${yearPad}-${monthPad}-${dayPad}`;
-  const currentPeriodYM = `${yearPad}-${monthPad}`; // "2026-08"
+  const currentPeriodYM = `${yearPad}-${monthPad}`; // ej: "2026-10"
+  const currentMonthName = MONTH_NAMES[todayObj.getMonth()];
+  const currentPeriodLabel = `${currentMonthName} ${yearPad}`;
 
-  // Rango para Vencimientos: 1 mes antes (Julio 2026) hasta 2 meses después (Octubre 2026)
-  const allowedDueDatePeriods = [
-    { ym: '2026-07', label: 'Julio 2026', year: '2026', month: '07' },
-    { ym: '2026-08', label: 'Agosto 2026', year: '2026', month: '08' },
-    { ym: '2026-09', label: 'Septiembre 2026', year: '2026', month: '09' },
-    { ym: '2026-10', label: 'Octubre 2026', year: '2026', month: '10' }
-  ];
+  // Rango para Vencimientos, calculado a partir de HOY: 1 mes antes hasta 2 meses después.
+  const allowedDueDatePeriods = Array.from({ length: 4 }, (_, i) => {
+    const d = new Date(todayObj.getFullYear(), todayObj.getMonth() - 1 + i, 1);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    return { ym: `${y}-${m}`, label: `${MONTH_NAMES[d.getMonth()]} ${y}`, year: String(y), month: m };
+  });
+  const firstPeriodLabel = allowedDueDatePeriods[0].label;
+  const lastPeriodLabel = allowedDueDatePeriods[allowedDueDatePeriods.length - 1].label;
 
-  const [duePeriodIndex, setDuePeriodIndex] = useState(1); // Agosto 2026 por defecto
+  const [duePeriodIndex, setDuePeriodIndex] = useState(1); // el mes actual por defecto
   const [dueDayPart, setDueDayPart] = useState(dayPad);
 
-  // Selector de fecha para el modal de pago (desde el 1 de Agosto hasta HOY Día 11)
+  // Selector de fecha para el modal de pago (desde el día 1 del mes actual hasta HOY)
   const currentDayNum = todayObj.getDate();
   const allowedPayDays = Array.from({ length: currentDayNum }, (_, i) => String(i + 1).padStart(2, '0'));
   const [payDayPart, setPayDayPart] = useState(dayPad);
@@ -154,7 +158,7 @@ export default function App() {
     return { status: 'PENDIENTE', priority: 'BAJA' };
   };
 
-  // Recálculo de métricas filtrando ÚNICAMENTE las obligaciones del mes corriente (Agosto 2026) o vencidos pasados
+  // Recálculo de métricas filtrando ÚNICAMENTE las obligaciones del mes corriente o vencidos pasados
   const recalculateDataMetrics = (currentBudget, expensesList) => {
     const budgetNum = Number(currentBudget) || 0;
     const rawExpenses = Array.isArray(expensesList) ? expensesList : [];
@@ -258,7 +262,10 @@ export default function App() {
   });
 
   const selectedPeriodObj = allowedDueDatePeriods[duePeriodIndex] || allowedDueDatePeriods[1];
-  const selectedDueDate = `${selectedPeriodObj.year}-${selectedPeriodObj.month}-${dueDayPart}`;
+  // Si el día elegido no existe en ese mes (ej: 31 en noviembre), se usa el último día del mes.
+  const lastDayOfSelectedMonth = new Date(Number(selectedPeriodObj.year), Number(selectedPeriodObj.month), 0).getDate();
+  const safeDueDay = String(Math.min(Number(dueDayPart), lastDayOfSelectedMonth)).padStart(2, '0');
+  const selectedDueDate = `${selectedPeriodObj.year}-${selectedPeriodObj.month}-${safeDueDay}`;
 
   // Cálculo de Cuotas con Interés sobre el Total:
   const isCuotaCategory = safeCategories.find(c => String(c.id) === String(formData.category_id))?.name === 'Cuota';
@@ -317,7 +324,9 @@ export default function App() {
       nextMonth = 1;
       nextYear += 1;
     }
-    const nextDueDateStr = `${nextYear}-${String(nextMonth).padStart(2, '0')}-${dDay}`;
+    const lastDayOfNextMonth = new Date(nextYear, nextMonth, 0).getDate();
+    const nextDay = String(Math.min(parseInt(dDay, 10), lastDayOfNextMonth)).padStart(2, '0');
+    const nextDueDateStr = `${nextYear}-${String(nextMonth).padStart(2, '0')}-${nextDay}`;
 
     if (isCuotaCategory && Number(formData.installment_current) < Number(formData.installment_total)) {
       const nextNum = Number(formData.installment_current) + 1;
@@ -489,7 +498,7 @@ export default function App() {
 
           <div style={{ background: 'var(--bg-subtle)', padding: '12px 18px', borderRadius: '999px', display: 'inline-block', marginBottom: '28px', border: '1px solid var(--border-color)' }}>
             <span style={{ fontSize: '0.85rem', fontWeight: '700', color: 'var(--accent-navy)' }}>
-              Período: {data?.currentPeriodName || 'Agosto 2026'}
+              Período: {data?.currentPeriodName || currentPeriodLabel}
             </span>
           </div>
 
@@ -517,7 +526,7 @@ export default function App() {
           <div className="brand-title">
             <h1>
               FinFix
-              <span className="period-pill">{data?.currentPeriodName || 'Agosto 2026'}</span>
+              <span className="period-pill">{data?.currentPeriodName || currentPeriodLabel}</span>
             </h1>
             <p>Sistema de Control de Gastos Mensuales</p>
           </div>
@@ -641,7 +650,7 @@ export default function App() {
           </div>
         ) : filteredExpenses.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-secondary)', background: 'var(--bg-surface)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
-            No hay obligaciones en este filtro para el período corriente (Agosto 2026).
+            No hay obligaciones en este filtro para el período corriente ({currentPeriodLabel}).
           </div>
         ) : (
           filteredExpenses.map((exp) => {
@@ -784,7 +793,7 @@ export default function App() {
                       checked={formData.remember_next_month === 'YES'}
                       onChange={(e) => setFormData({ ...formData, remember_next_month: e.target.checked ? 'YES' : 'NO' })}
                     />
-                    <span>Recordar este gasto fijo automáticamente para el próximo mes (no figurará en Agosto)</span>
+                    <span>Recordar este gasto fijo automáticamente para el próximo mes (no figurará en {currentMonthName})</span>
                   </label>
                 </div>
               )}
@@ -922,7 +931,7 @@ export default function App() {
                     </select>
                   </div>
                   <span style={{ fontSize: '0.725rem', color: 'var(--text-secondary)' }}>
-                    Rango: 1 mes antes (Jul 2026) hasta 2 meses después (Oct 2026)
+                    Rango: 1 mes antes ({firstPeriodLabel}) hasta 2 meses después ({lastPeriodLabel})
                   </span>
                 </div>
               </div>
@@ -975,7 +984,7 @@ export default function App() {
                 <label>Fecha Efectiva de Pago *</label>
                 <div style={{ display: 'grid', gridTemplateColumns: '1.8fr 1fr', gap: '6px' }}>
                   <select className="form-input" disabled>
-                    <option>Agosto 2026</option>
+                    <option>{currentPeriodLabel}</option>
                   </select>
                   <select
                     className="form-input"
@@ -988,7 +997,7 @@ export default function App() {
                   </select>
                 </div>
                 <span style={{ fontSize: '0.725rem', color: 'var(--text-secondary)' }}>
-                  Permitido: Desde el 01/08/2026 hasta el día de HOY ({todayStr})
+                  Permitido: Desde el 01/{monthPad}/{yearPad} hasta el día de HOY ({todayStr})
                 </span>
               </div>
 
@@ -1004,7 +1013,7 @@ export default function App() {
                 />
                 {isPaidOnTime ? (
                   <span className="validation-hint" style={{ color: 'var(--accent-sage)', fontWeight: '600' }}>
-                    ℹ️ El pago fue realizado el {payDayPart}/08/2026 (a término en o antes del vencimiento). Se abona la tarifa fijada (${formatMoney(selectedExpense.estimated_amount)}) sin recargo.
+                    ℹ️ El pago fue realizado el {payDayPart}/{monthPad}/{yearPad} (a término en o antes del vencimiento). Se abona la tarifa fijada (${formatMoney(selectedExpense.estimated_amount)}) sin recargo.
                   </span>
                 ) : Number(payData.actual_paid_amount) > selectedExpense.estimated_amount ? (
                   <span className="validation-hint" style={{ color: 'var(--accent-amber)' }}>
