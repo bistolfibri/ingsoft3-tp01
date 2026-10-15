@@ -6,10 +6,11 @@ export default defineConfig({
         environment: 'node',
         coverage: {
             provider: 'v8',
+            reporter: ['text', 'html', 'json-summary'],
             include: ['src/services/**/*.js'],
             thresholds: {
-                lines: 65,
-                branches: 50
+                lines: 80,
+                branches: 58
             }
         }
     }

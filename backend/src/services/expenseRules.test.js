@@ -72,6 +72,27 @@ describe('FinFix - Suite de Reglas de Negocio Backend', () => {
             expect(result.priority).toBe('ALTA');
         });
 
+        it('debe devolver PROXIMO_VENCER y prioridad ALTA cuando faltan 3 dias o menos (rama antes sin cubrir)', () => {
+            // Arrange: vence en 2 dias
+            const currentDate = new Date(2026, 7, 10);
+
+            // Act
+            const result = determineExpenseStatusAndPriority('2026-08-12', false, currentDate);
+
+            // Assert
+            expect(result.status).toBe('PROXIMO_VENCER');
+            expect(result.priority).toBe('ALTA');
+        });
+
+        it('debe devolver PENDIENTE con prioridad MEDIA entre 4 y 15 dias, y BAJA si falta mas', () => {
+            const currentDate = new Date(2026, 7, 10);
+
+            expect(determineExpenseStatusAndPriority('2026-08-20', false, currentDate))
+                .toEqual({ status: 'PENDIENTE', priority: 'MEDIA' });
+            expect(determineExpenseStatusAndPriority('2026-09-30', false, currentDate))
+                .toEqual({ status: 'PENDIENTE', priority: 'BAJA' });
+        });
+
         it('debe devolver estado PAGADO y prioridad BAJA si la obligación ya fue abonada', () => {
             // Arrange & Act
             const result = determineExpenseStatusAndPriority('2026-08-10', true);
