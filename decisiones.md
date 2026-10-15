@@ -254,7 +254,7 @@ curl -fsS --max-time 30 --get --data-urlencode "imgURL=ghcr.io/bistolfibri/ingso
 # cuando Render → Deploys muestre ese commit como live en los dos servicios:
 echo "rollback: $(( $(date +%s) - INICIO )) s"
 ```
-- **Tiempo medido**: ⏳ PENDIENTE (se completa después de hacerlo: es el tiempo entre el inicio y el *live* del deploy anterior en Render → Deploys del servicio de PROD).
+- **Tiempo medido (lo hice de verdad el 15/10/2026)**: **menos de 1 minuto**. Disparé los dos hooks de PROD con `imgURL=…:sha-2d17b10514e326ef0e024328fc6f0feb539fca00` a las **19:17:53**, y en *Events* de `finfix-api-prod` y de `finfix-front-prod` el «Deploy live» figura a las **19:18** (Render muestra la hora al minuto). En *Deploys* cada deploy dice «Trigger: Deploy Hook» y tardó **10,6 s** (api) y **10,3 s** (front). Comprobé en la pantalla de PROD que volvió el subtítulo anterior de la app y después volví a la versión nueva (`ec0fd95`) con los mismos hooks. Los *Events* de Render no son públicos: los muestro en vivo en la defensa.
 - No uso el botón *Manual Deploy* de Render: despliega la imagen que figura en *Settings → Image* (la de la primera configuración), **no** la que está corriendo, y podría llevar PROD hacia atrás sin avisar.
 - **Lo que el rollback de código NO deshace**: los datos. Si una versión nueva hubiera migrado o borrado columnas o filas en Neon, volver a la imagen anterior no las recupera. Para eso haría falta una copia (backup o *branch* de Neon) tomada antes del deploy.
 - Métrica DORA que ejercita: tiempo de recuperación ante fallos.
@@ -284,7 +284,7 @@ Usé asistencia de IA (Claude) para estructurar el workflow, los jobs de deploy 
 | :--- | :--- |
 | **Paquetes públicos con etiqueta `sha-…`** | [backend](https://github.com/bistolfibri/ingsoft3-tp01/pkgs/container/ingsoft3-tp01-backend) · [frontend](https://github.com/bistolfibri/ingsoft3-tp01/pkgs/container/ingsoft3-tp01-frontend) (ej.: `sha-2d17b10514e326ef0e024328fc6f0feb539fca00`) |
 | **Corrida donde la INTEGRACIÓN quedó VERDE y la e2e ROJA** | Run #90 · commit que rompió la app: 842dfff (cambia el texto del botón en frontend/src/App.jsx, sin tocar e2e/) · artefactos del run: playwright-report-integracion (3 pruebas pasaron) y playwright-report-e2e (2 fallaron y 2 pasaron) |
-| **Corrida completa en VERDE hasta PROD** | ⏳ PENDIENTE: link (incluye la aprobación en `production`) |
+| **Corrida completa en VERDE hasta PROD** | [Run #94](https://github.com/bistolfibri/ingsoft3-tp01/actions/runs/38812623770): build → deploy-qa → integración → e2e → aprobación en `production` (con comentario) → deploy-prod verde (commit `ec0fd95`) |
 | **Release `v7.0.0`** | ⏳ PENDIENTE: link |
 | **QA (vivo)** | API: https://finfix-api-qa.onrender.com/health · Front: https://finfix-front-qa.onrender.com |
 | **PROD (vivo)** | API: https://finfix-api-prod.onrender.com/health · Front: https://finfix-front-prod.onrender.com |
