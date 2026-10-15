@@ -41,9 +41,18 @@ test.describe('Suite 1: Pruebas de Integración (Backend + PostgreSQL Real)', ()
         // 3. Borrado en la BD (DELETE)
         const deleteRes = await request.delete(`${API_URL}/api/expenses/${gastoCreado.id}`);
         expect(deleteRes.status()).toBe(200);
+
+        // 4. Comprobar que el borrado fue real: la base ya no lo devuelve (GET)
+        const despuesRes = await request.get(`${API_URL}/api/dashboard`);
+        expect(despuesRes.status()).toBe(200);
+        const despuesData = await despuesRes.json();
+        expect(despuesData.expenses.some(e => e.title === tituloUnico)).toBe(false);
     });
 
     test('3. POST /api/expenses con datos inválidos responde error HTTP 400', async ({ request }) => {
+        // Cuántos gastos hay antes: el alta inválida no tiene que cambiar nada
+        const antes = (await (await request.get(`${API_URL}/api/dashboard`)).json()).expenses.length;
+
         const gastoInvalido = {
             title: '', // Título vacío inválido
             category_id: 1,
@@ -52,6 +61,10 @@ test.describe('Suite 1: Pruebas de Integración (Backend + PostgreSQL Real)', ()
 
         const response = await request.post(`${API_URL}/api/expenses`, { data: gastoInvalido });
         expect(response.status()).toBe(400);
+
+        // ...y de verdad no se creó nada en la base
+        const despues = (await (await request.get(`${API_URL}/api/dashboard`)).json()).expenses.length;
+        expect(despues).toBe(antes);
     });
 
 });

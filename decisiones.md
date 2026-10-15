@@ -166,50 +166,113 @@ Para cumplir con el requisito obligatorio de Mocks sin tocar dependencias reales
 
 ### Enlaces de este TP
 
-| Recurso | Enlace Directo |
+| Recurso | Enlace |
 | :--- | :--- |
-| **Paquete Backend en GHCR** | [ghcr.io/bistolfibri/ingsoft3-tp01-backend](https://github.com/bistolfibri/ingsoft3-tp01/pkgs/container/ingsoft3-tp01-backend) |
-| **Paquete Frontend en GHCR** | [ghcr.io/bistolfibri/ingsoft3-tp01-frontend](https://github.com/bistolfibri/ingsoft3-tp01/pkgs/container/ingsoft3-tp01-frontend) |
-| **Corrida con Despliegue RECHAZADO** | [Workflow Run #42 (Rejected)](https://github.com/bistolfibri/ingsoft3-tp01/actions/runs/18182903126) |
-| **Entorno QA Local** | API: `http://localhost:8080/api/dashboard` \| Front: `http://localhost:3000` |
-| **Entorno PROD Local** | API: `http://localhost:8081/api/dashboard` \| Front: `http://localhost:3001` |
+| **Paquete backend (público, etiquetado por commit)** | [ghcr.io/bistolfibri/ingsoft3-tp01-backend](https://github.com/bistolfibri/ingsoft3-tp01/pkgs/container/ingsoft3-tp01-backend) · `docker pull --platform linux/amd64 ghcr.io/bistolfibri/ingsoft3-tp01-backend:sha-2d17b10514e326ef0e024328fc6f0feb539fca00` |
+| **Paquete frontend (público, etiquetado por commit)** | [ghcr.io/bistolfibri/ingsoft3-tp01-frontend](https://github.com/bistolfibri/ingsoft3-tp01/pkgs/container/ingsoft3-tp01-frontend) · `docker pull --platform linux/amd64 ghcr.io/bistolfibri/ingsoft3-tp01-frontend:sha-2d17b10514e326ef0e024328fc6f0feb539fca00` |
+| **Cadena, eslabón 2 — un PR con tests en verde donde «Entrar al registry» sale *salteado*** | [job build-backend del PR #54](https://github.com/bistolfibri/ingsoft3-tp01/actions/runs/38778692235/job/116572917241) (paso 8 = skipped) |
+| **Cadena, eslabón 3 — corrida de `main` donde «construir y publicar la imagen» es el ÚLTIMO paso** | [job build-backend de la corrida de main](https://github.com/bistolfibri/ingsoft3-tp01/actions/runs/38779126083/job/116574433745) (paso 10 = construir y publicar, después sólo `Post …`) |
+| **QA (vivo)** | API: https://finfix-api-qa.onrender.com/health · Front: https://finfix-front-qa.onrender.com |
+| **PROD (vivo)** | API: https://finfix-api-prod.onrender.com/health · Front: https://finfix-front-prod.onrender.com |
+| **Deploy a PROD RECHAZADO con motivo** | ⏳ PENDIENTE: link a la corrida (se completa después de hacer el rechazo) |
+| **Release `v6.0.0`** | ⏳ PENDIENTE: link a la release (se completa después de taggear el commit que está en PROD) |
 
-### 1. Inmutabilidad de Artefactos y Tagging por SHA
-- **Estrategia de Etiquetado**: Se abandonó el uso de la etiqueta mutable `:latest` para la publicación de contenedores en GitHub Packages (`ghcr.io`). Se adoptó la convención inmutable `:sha-${{ github.sha }}` utilizando el Hash completo del commit.
-- **Justificación**: Garantiza la trazabilidad absoluta del código desplegado. Un contenedor publicado con la etiqueta del SHA es 100% inalterable: se sabe exactamente qué versión de código fuente dio origen al paquete de producción y previene que despliegues simultáneos sobreescriban la imagen en el registry.
+> Las URLs de QA y PROD son del plan gratuito de Render: si nadie las usó en los últimos ~15 minutos, la primera visita tarda alrededor de un minuto en responder (cold start). Es normal.
 
-### 2. Desacople del Frontend mediante Nginx Template (`default.conf.template`)
-- **Problema Solucionado**: En el TP2 la URL del Backend (`http://backend:3001`) quedaba compilada estáticamente dentro del bundle JS del frontend. Eso exigía recompilar una imagen de Docker distinta para QA y otra para Producción.
-- **Solución implementada**: Se configuró la plantilla `/etc/nginx/templates/default.conf.template`. Al iniciar el contenedor en Nginx, la imagen lee las variables de entorno `${BACKEND_URL}` y `${DNS_RESOLVER}` inyectadas por Docker Compose.
-- **Resultado de Arquitectura**: **Una sola imagen de Docker sirve para QA y para Producción**. Se compila 1 sola vez en el pipeline y se promueve entre entornos sin sufrir modificaciones.
+### 1. Qué proveedor usé y cómo cumplo los cinco puntos del contrato
+Uso **Render** (4 web services) y **Neon** (Postgres). Los cinco puntos:
+1. **Dos entornos separados, cada uno con su URL pública**: `finfix-api-qa` / `finfix-front-qa` y `finfix-api-prod` / `finfix-front-prod` (links arriba).
+2. **Una base de datos por entorno**: un proyecto de Neon (`finfix`) con dos bases, `app_qa` y `app_prod`. Cada api recibe por variables de entorno (`DB_HOST`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_SSL`) la conexión de **su** base. Las tablas las creé a mano en el SQL Editor de Neon, en las dos bases, con `database/schema.sql` y `database/seed.sql` (no tengo migraciones automáticas: no es la forma más profesional y por eso lo cuento).
+3. **Front y back corren como contenedores**, a partir de mis Dockerfiles.
+4. **El deploy lo dispara mi pipeline**: cada servicio tiene un *deploy hook* de Render (una URL secreta) y el job de GitHub Actions lo llama. Los servicios que Render ejecuta desde una imagen **no tienen Auto-Deploy** (la opción ni aparece), así que el proveedor no despliega nada por su cuenta.
+5. **PROD está detrás de la aprobación** del environment `production` de GitHub (required reviewer: yo, con *Prevent self-review* desactivado).
 
-### 3. Aislamiento Estricto de Entornos (QA vs Producción)
-- **Bases de Datos Separadas**: QA opera sobre la base `app_qa` y Producción sobre `app_prod`, impidiendo la contaminación o pérdida inadvertida de datos reales durante pruebas.
-- **Aislamiento de Proyecto en Compose**: Se agregaron las directivas `name: qa` y `name: prod` en `compose.qa.yml` y `compose.prod.yml`. Esto evita que `docker compose` asocie los contenedores al nombre del directorio raíz y derribe el entorno de QA al redesplegar Producción.
-- **Mapeo de Puertos**:
-  - QA: Backend en puerto `8080`, Frontend en puerto `3000`.
-  - PROD: Backend en puerto `8081`, Frontend en puerto `3001`.
+### 2. Por qué el artefacto se publica sólo con la verificación en verde
+El pipeline construye cada imagen **una vez**, en el mismo job que corrió los tests, y la publica en `ghcr.io` etiquetada `sha-<commit completo>`. La garantía no depende de un control nuevo sino de **tres eslabones encadenados**:
+1. Nada entra a `main` sin el pipeline en verde (checks requeridos `build-backend` y `build-frontend` + umbral de cobertura del TP5).
+2. Sólo lo que entra a `main` se publica: `push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}`.
+3. El paso que publica es **el último** del job que corrió los tests: si algo falla antes, el job muere y ese paso nunca corre. Por eso las dos evidencias de arriba: en el PR, el login al registry sale *skipped*; en `main`, publicar es el último paso.
 
-### 4. Gate Humano y Reglas de Protección de Entorno
-- **Configuración del Environment `production`**: Se habilitó la regla *Required reviewers* asignando al desarrollador (`bistolfibri`) como aprobador oficial y desmarcando la casilla *Prevent self-review*.
-- **Demostración de Rechazo**: En la corrida #42 se detuvo el pipeline en `deploy-prod` y se ejecutó un rechazo explícito con el motivo: *"Rechazado intencionalmente: se detectó un fallo visual en QA durante las pruebas de regresión"*.
-- **Demostración de Aprobación**: Tras verificar el correcto funcionamiento en QA y el pase de Smoke Tests en bucle con `curl`, se revisó la solicitud de despliegue y se hizo clic en *Approve and deploy*, habilitando la ejecución automática hacia el entorno de Producción.
+Si se publicara igual con tests en rojo, estar en el registry dejaría de significar «esto pasó la verificación» y el registry sería un depósito de cosas que alguien construyó alguna vez.
+**Lo que esta cadena NO garantiza**: yo podría hacer un `docker push` a mano desde mi notebook y entraría igual. La cadena garantiza lo que publica **el pipeline**, no lo que físicamente puede entrar. Y los tags se pueden volver a publicar (por eso nunca vuelvo a correr una corrida vieja para desplegar); lo único inmutable es el digest (`@sha256:…`), que no usé.
+No publico `latest`: cada imagen tiene un solo nombre, el de su commit. Los dos paquetes son **públicos** (Render los baja sin credenciales; hacerlos públicos no tiene vuelta atrás).
 
-### 5. Plan de Rollback y Medición de Tiempos
-- **Procedimiento de Recuperación Ante Fallos**: Si se detecta una anomalía en Producción tras un despliegue, el equipo no compila código a las apuradas. Se re-despliega instantáneamente la imagen inmutable anterior mediante la variable `SHA_ANTERIOR`:
-  ```bash
-  docker pull ghcr.io/bistolfibri/ingsoft3-tp01-backend:sha-70f09f2812e1310d33d7175504d718abd80d393f
-  docker pull ghcr.io/bistolfibri/ingsoft3-tp01-frontend:sha-70f09f2812e1310d33d7175504d718abd80d393f
-  docker compose -f compose.prod.yml up -d
+### 3. Continuous Delivery, no Continuous Deployment
+Implementé **Continuous Delivery**: todo cambio que pasa la verificación llega **solo** a QA, pero a PROD sólo llega cuando una persona lo aprueba. Corresponde a mi contexto porque FinFix maneja plata de la gente y mi red de seguridad (25 unit tests, 3 pruebas de integración y 3 e2e) es buena pero chica: sacar al humano automatizaría la propagación de errores. Para llegar a Continuous Deployment me faltaría observabilidad real (métricas, alertas, versión visible en `/health`) y tests que cubran más flujos. ¿La querría? Más adelante, sí, para cambios chicos y con rollback rápido.
 
-### 6. Dificultades Encontradas y Soluciones
-- **Sintaxis de Comentarios en Dockerfile**: En `frontend/Dockerfile`, colocar `# comment` en la misma línea de `EXPOSE 80` provocó el fallo `invalid containerPort: #`. Se resolvió moviendo los comentarios a líneas independientes por encima de la directiva.
-- **Archivo no Encontrado en Runner**: En el primer deploy, la acción falló con `no such file or directory` al buscar `compose.qa.yml`. Se solucionó rastreando e incluyendo explícitamente `compose.qa.yml` y `compose.prod.yml` dentro del control de versiones de Git.
+### 4. Diseño de la cadena y alcance de cada secret
+```
+build-backend ─┐
+               ├─► deploy-qa ─► integracion ─► e2e ─► [aprobación] ─► deploy-prod
+build-frontend ┘
+```
+- `needs:` encadena la promoción; el `if: github.ref == 'refs/heads/main'` está sólo en `deploy-qa` y el resto lo hereda (en un PR ningún deploy corre).
+- `deploy-qa` usa `environment: qa` (sin reglas: es automático a propósito) y `deploy-prod` usa `environment: production` (pausa hasta que apruebo).
+- **Secrets por environment**: `RENDER_HOOK_API_QA` y `RENDER_HOOK_FRONT_QA` viven **dentro** del environment `qa`; `RENDER_HOOK_API_PROD` y `RENDER_HOOK_FRONT_PROD` dentro de `production`. Un job de QA no puede leer los hooks de PROD, y los de PROD sólo se entregan a un job ya aprobado. Si estuvieran a nivel repositorio, cualquier job (incluido uno que no pasó la aprobación) podría desplegar a producción.
+- Las URLs de cada entorno **no** son secretas: son variables del repositorio (`QA_API_URL`, `QA_FRONT_URL`, `PROD_API_URL`, `PROD_FRONT_URL`), porque los jobs `integracion` y `e2e` no tienen environment.
+- `deploy-prod` lleva `concurrency: { group: deploy-prod, cancel-in-progress: false }` para que dos deploys a PROD no se pisen.
 
-### 7. Declaración de Uso de Inteligencia Artificial
-- **Uso de IA**: Se consultó asistencia de IA para estructurar los jobs de despliegue en GitHub Actions YAML, diseñar la sustitución de variables de Nginx (`envsubst`) y configurar la comprobación de salud en loop con `curl`.
-- **Verificación realizada**: Se compilaron y probaron las imágenes, se verificó el aislamiento de puertos en `localhost`, se comprobó la autenticación en `ghcr.io` y se completaron manualmente los flujos de rechazo y aprobación de despliegues en GitHub Environments.
+### 5. Qué mira mi aprobador antes de aprobar
+No apruebo por reflejo. Antes de hacer clic miro:
+1. Que **todos** los jobs anteriores estén verdes (build, smoke de QA, integración y e2e).
+2. Que el commit de **esta** corrida sea el último de `main` (si entró otro merge después, esta corrida está vieja: **no** la apruebo, la rechazo).
+3. Qué cambia el PR (título y archivos): si toca base de datos, variables o el workflow, miro con más cuidado.
+4. Que no haya otra corrida esperando aprobación (si hay dos, rechazo la vieja con su motivo).
+5. Que sea un buen momento (nada de aprobar si estoy por dejar de mirar el sistema).
+**Lo que mi aprobador NO puede ver**: qué versión corre hoy en PROD (el `/health` no la informa) ni cómo se comporta con usuarios reales: no tengo métricas ni alertas. Eso me falta para decidir mejor.
+La evidencia de que el gate dice que no está en «Enlaces de este TP» (deploy rechazado con motivo).
 
+### 6. La letra chica del free tier y cómo la manejo
+- **Render**: cada servicio gratuito **duerme tras ~15 min sin tráfico** y el primer pedido lo despierta con un cold start de hasta ~1 minuto. Por eso el smoke test **reintenta** (30 intentos cada 20 s, con `--max-time 10` por pedido) en vez de hacer un `curl` seco.
+- **750 horas por mes son del WORKSPACE, no de cada servicio**: tengo 4 servicios; uno despierto las 24 h consume 720. Como duermen solos, no llego, pero **no dejo nada haciendo ping para mantenerlos despiertos**; si el workspace se quedara sin horas, Render suspende los servicios hasta fin de mes y las URLs dejarían de responder.
+- **500 minutos de build por mes**: como mis servicios ejecutan una imagen ya construida por GitHub Actions, **Render no construye nada** y no gasto esos minutos (el consumo se puede mirar en Workspace → Billing).
+- **Neon**: suspende el cómputo tras unos minutos sin uso y lo despierta solo (más rápido que Render); límite de 0,5 GB de almacenamiento. Mi `db.js` tiene timeout de conexión de 10 s para que una base despertando no cuelgue la API.
+
+### 7. Qué garantía se pierde si el proveedor RECONSTRUYE desde el repo (y qué hice yo)
+La guía del TP6 arma Render para que **vuelva a construir** el commit desde el repositorio. Eso rompe «se promueve lo mismo que se verificó»: lo que corre en QA y PROD sería **otra construcción** del mismo commit (una dependencia que cambió entre un build y otro, una imagen base actualizada) y no podría demostrar que es igual. Mi cadena final no tiene ese problema porque hice el TP6 y el TP7 juntos: los cuatro servicios **ejecutan la imagen** publicada por mi pipeline (el hook lleva `imgURL=…:sha-<commit>` y no un `ref` de commit). El detalle está en la sección del TP7.
+
+### 8. Qué prueba mi smoke test y qué NO
+- **Prueba** que el entorno responde: `/health` (proceso vivo), `/api/dashboard` (la base contesta: si la conexión a Neon estuviera rota, daría error aunque `/health` esté verde) y la página del front servida por nginx.
+- **No prueba** qué versión está corriendo: el deploy hook responde al instante y, si el deploy falla, Render sigue sirviendo la versión anterior y el smoke da verde igual. Cómo lo mitigo hoy: miro en *Events* de cada servicio que el deploy diga «Triggered via Deploy Hook» con el `sha-` de esa corrida. Cómo lo cerraría: que `/health` devuelva el commit horneado en la imagen y que el smoke lo compare con `github.sha`.
+
+### 9. Cómo comprobé que cada entorno usa su propia base
+Creé un gasto con un nombre inconfundible **sólo en PROD**: apareció en la URL de PROD y **no** apareció en la de QA. Y como contraprueba, un dato creado en QA no aparece en PROD.
+Los tres controles que se pueden mirar en mi pantalla: (a) los 4 servicios no tienen Auto-Deploy (servicios de imagen); (b) cada hook de PROD apunta a un servicio de PROD (se compara el id `srv-…` del hook con el del servicio); (c) las dos bases son distintas (prueba de arriba).
+
+### 10. Deployment pattern para una producción real
+Elegiría **blue-green**: dos entornos completos y un router que cambia de uno a otro. **Costo**: el doble de infraestructura. **Riesgo**: el cambio de esquema de la base debe ser compatible con las dos versiones. **Rollback**: instantáneo, se vuelve el switch. Lo elijo porque FinFix maneja dinero y una caída de PROD duele más que pagar infraestructura doble. **Lo que me falta hoy para hacerlo en serio**: métricas y alertas (para saber que la versión nueva está mal), un `/health` que informe la versión y migraciones de base de datos versionadas. Canary lo descarto por ahora porque sin métricas es ruleta; con feature flags, en cambio, podría desplegar código apagado y encenderlo después (deploy ≠ release).
+
+### 11. Plan de rollback y su tiempo medido
+Como cada servicio ejecuta una imagen etiquetada por commit, volver atrás es **disparar el mismo hook de PROD con la imagen del último deploy bueno**:
+```bash
+export SHA_ANTERIOR=<commit-del-último-deploy-bueno>     # sale de Deployments → production o de la release anterior
+read -rs HOOK_API_PROD   && export HOOK_API_PROD          # el hook se copia de Render → Settings (el secret de GitHub no se puede releer)
+read -rs HOOK_FRONT_PROD && export HOOK_FRONT_PROD
+INICIO=$(date +%s)
+curl -fsS --max-time 30 --get --data-urlencode "imgURL=ghcr.io/bistolfibri/ingsoft3-tp01-backend:sha-$SHA_ANTERIOR"  "$HOOK_API_PROD"
+curl -fsS --max-time 30 --get --data-urlencode "imgURL=ghcr.io/bistolfibri/ingsoft3-tp01-frontend:sha-$SHA_ANTERIOR" "$HOOK_FRONT_PROD"
+# cuando Render → Deploys muestre ese commit como live en los dos servicios:
+echo "rollback: $(( $(date +%s) - INICIO )) s"
+```
+- **Tiempo medido**: ⏳ PENDIENTE (se completa después de hacerlo: es el tiempo entre el inicio y el *live* del deploy anterior en Render → Deploys del servicio de PROD).
+- No uso el botón *Manual Deploy* de Render: despliega la imagen que figura en *Settings → Image* (la de la primera configuración), **no** la que está corriendo, y podría llevar PROD hacia atrás sin avisar.
+- **Lo que el rollback de código NO deshace**: los datos. Si una versión nueva hubiera migrado o borrado columnas o filas en Neon, volver a la imagen anterior no las recupera. Para eso haría falta una copia (backup o *branch* de Neon) tomada antes del deploy.
+- Métrica DORA que ejercita: tiempo de recuperación ante fallos.
+
+### 12. Release `v6.0.0`
+El tag `v6.0.0` y su release se ponen **sobre el commit que está en PROD** (lo veo en *Deployments → production*), no sobre la punta de `main`, con `gh release create v6.0.0 --generate-notes --verify-tag`. ⏳ PENDIENTE: commit exacto y link (ver «Enlaces de este TP»).
+
+### 13. Dificultades encontradas y soluciones
+- **Mi primera versión del TP6 desplegaba en `localhost` con Docker Compose** (runner propio) y no en una nube. Esa versión no tenía URLs públicas ni una base por entorno de verdad; la reemplacé por Render + Neon, que es lo que describe este documento.
+- **Hooks guardados como secrets del repositorio**: el profesor pide secrets **del environment**. Los moví a `qa` y `production` y borré los del repositorio.
+- **Las URLs de la api en el navegador daban «Cannot GET /»**: es normal, la api no tiene ruta en `/`; se comprueba con `/health`.
+- **El primer run en `Pending` parecía trabado**: era el job `deploy-prod` esperando mi aprobación (así funciona el gate).
+- **El front de Render escucha en el puerto 80** (nginx) y la api en el `PORT` que Render le da: hubo que poner `PORT=80` en el servicio del front.
+- **El nginx necesitaba `resolver` y `BACKEND_URL` sin barra final**: con barra, todos los pedidos a `/api` daban 404.
+- **Neon con SSL obligatorio**: la api necesitó `DB_SSL=true`.
+
+### 14. Declaración de uso de IA
+Usé asistencia de IA (Claude) para estructurar el workflow, los jobs de deploy y las pruebas, y para redactar y revisar estas secciones. **Cómo lo verifiqué**: leí cada job del `ci.yml` y puedo explicar qué pasa entre el merge y PROD (cada compuerta, cada secret, cada espera); comprobé en Render que los deploys dicen «Triggered via Deploy Hook» con el `sha-` de la corrida; comprobé que QA y PROD usan bases distintas creando un dato sólo en PROD; y ejecuté yo misma el rechazo y la aprobación en GitHub.
 
 ---
 
@@ -217,51 +280,76 @@ Para cumplir con el requisito obligatorio de Mocks sin tocar dependencias reales
 
 ### Enlaces del TP7
 
-| Recurso | Enlace Directo |
+| Recurso | Enlace |
 | :--- | :--- |
-| **Paquetes en Registry (GHCR)** | [ghcr.io/bistolfibri/ingsoft3-tp01-backend](https://github.com/bistolfibri/ingsoft3-tp01/pkgs/container/ingsoft3-tp01-backend) \| [frontend](https://github.com/bistolfibri/ingsoft3-tp01/pkgs/container/ingsoft3-tp01-frontend) |
-| **Corrida de Freno (VERDE/ROJA)** | [Workflow Run #37207451220](https://github.com/bistolfibri/ingsoft3-tp01/actions/runs/37207451220) (Commit `dce3b88`) |
-| **Artefactos del Freno** | Reporte Integración VERDE (`playwright-report-integracion`) \| Reporte E2E ROJO (`playwright-report-e2e`) |
-| **Corrida Completa en VERDE hasta PROD** | [Workflow Run #37209350685](https://github.com/bistolfibri/ingsoft3-tp01/actions/runs/37209350685) |
-| **Release & Tag v7.0.0** | [Release v7.0.0 — GitHub](https://github.com/bistolfibri/ingsoft3-tp01/releases/tag/v7.0.0) |
-| **Entornos Desplegados (Runner/Compose)** | QA: API `http://localhost:8080` / Front `http://localhost:3000` \| PROD: API `http://localhost:8081` / Front `http://localhost:3001` |
+| **Paquetes públicos con etiqueta `sha-…`** | [backend](https://github.com/bistolfibri/ingsoft3-tp01/pkgs/container/ingsoft3-tp01-backend) · [frontend](https://github.com/bistolfibri/ingsoft3-tp01/pkgs/container/ingsoft3-tp01-frontend) (ej.: `sha-2d17b10514e326ef0e024328fc6f0feb539fca00`) |
+| **Corrida donde la INTEGRACIÓN quedó VERDE y la e2e ROJA** | ⏳ PENDIENTE: commit que rompió la app + link a la corrida + los dos reportes (`playwright-report-integracion` en verde y `playwright-report-e2e` en rojo) |
+| **Corrida completa en VERDE hasta PROD** | ⏳ PENDIENTE: link (incluye la aprobación en `production`) |
+| **Release `v7.0.0`** | ⏳ PENDIENTE: link |
+| **QA (vivo)** | API: https://finfix-api-qa.onrender.com/health · Front: https://finfix-front-qa.onrender.com |
+| **PROD (vivo)** | API: https://finfix-api-prod.onrender.com/health · Front: https://finfix-front-prod.onrender.com |
 
-### 1. Build Once, Deploy Many (Inmutabilidad)
-- **Problema resuelto**: En el TP6 mi pipeline reconstruía el código fuente en cada entorno. Para resolver esto, configuré el pipeline para que construya las imágenes de Docker **una sola vez** en los jobs `build-backend` y `build-frontend`, las publique en `ghcr.io` etiquetadas con `sha-${{ github.sha }}`, y luego los entornos de QA y Producción bajen y ejecuten **exactamente el mismo binario inmutable**.
+> Lo único que no es público son los *Events* de Render: los muestro yo en vivo en la defensa (cada servicio dice «Triggered via Deploy Hook» con el `sha-<commit>` de la corrida).
 
-### 2. Estrategia de Etiquetas (`sha-<commit>` vs `v7.0.0`)
-- **Trazabilidad con `sha-<commit>`**: Cada corrida publica imágenes en GHCR usando el hash del commit de Git. Esto me da trazabilidad total entre la versión de código e imagen.
-- **Tag de Git `v7.0.0`**: Marca la versión congelada de Producción al finalizar el práctico.
-- **¿Por qué NO uso `latest`?**: Porque `latest` es un puntero mutable que cambia en cada push. Si usara `latest` en Producción, no podría demostrar qué versión exacta de código está corriendo.
-- **Del Tag a la Imagen**: Ejecutando `git rev-list -n1 v7.0.0` obtengo el commit SHA exacto y con él la etiqueta de la imagen `sha-<commit>` publicada en el registry.
+### 1. Build once, deploy many
+**El problema del TP6**: si el proveedor reconstruye el repo en cada entorno, lo que corre en PROD no es *bit a bit* lo que probé en QA (otra hora, otras dependencias resueltas de nuevo). Un ejemplo propio: si una dependencia del `npm install` cambia entre el build de QA y el de PROD, PROD podría fallar con el mismo código que en QA anduvo, y el error sería casi imposible de explicar.
+**Lo que hago ahora**: los jobs `build-backend` y `build-frontend` construyen cada imagen **una sola vez**, la publican en `ghcr.io` como `sha-<commit>`, y los cuatro servicios de Render **ejecutan esa imagen** sin reconstruir nada. QA y PROD corren el mismo binario.
 
-### 3. Diagnóstico de Suites: Integración vs E2E
-- **Pruebas de Integración (`frontend/e2e/api.spec.js`)**: Escribí 3 pruebas HTTP directas contra la API de QA (`http://localhost:8080`), verificando la comunicación directa entre endpoints, controladores y la base de datos PostgreSQL real (sin navegador y sin dobles).
-- **Pruebas End-to-End (`frontend/e2e/gastos.spec.js`)**: Escribí 3 flujos de interfaz de usuario con Playwright (Chromium) navegando la aplicación real en QA (`http://localhost:3000`).
-- **Diagnóstico del Par Verde/Rojo (Evidencia de Freno)**:
-  - **Integración VERDE 🟢 + E2E ROJA 🔴**: Modifiqué el texto del botón en `App.jsx` de `"Guardar Obligación"` a `"Crear Gasto"`. La integración dio verde porque la API y la BD funcionaban perfectamente, mientras que la E2E dio roja al no encontrar el botón en la pantalla. Esto frenó automáticamente el avance a `deploy-prod` antes de llegar a revisión.
-  - **Integración ROJA 🔴 + E2E 🚫 (Salteado)**: Si la API fallara, el job de integración abortaría de inmediato evitando ejecutar navegadores innecesariamente.
+### 2. Estrategia de etiquetas y cómo configuré Render
+- **`sha-<commit completo>` (registry)**: identifica el commit que produjo la imagen. Es la etiqueta con la que **promuevo**. Son los 40 caracteres: con el commit corto, el registry contesta `manifest unknown`.
+- **`v7.0.0` (git)**: marca la versión que entrego del práctico, sobre el commit que está en PROD. No es una versión de producto (SemVer): el número lo fija el práctico.
+- **No publico `latest`**: es un puntero que cambia con cada push; si PROD lo usara, no podría decir qué desplegué.
+- **Con qué imagen configuré los servicios de Render**: con la de un commit puntual (el que usé al cambiar la fuente a *Existing Image*). **No es ésa la que corre**: Render sólo exige que coincidan el registry y el nombre de la imagen, y cada deploy de mi pipeline pasa un `imgURL` nuevo, sin tocar *Settings*. Por eso el botón *Manual Deploy* es peligroso: vuelve a la imagen vieja de *Settings*.
+- **Cambié la fuente de servicios existentes** (no creé servicios nuevos): se conservan la URL, las variables y los hooks.
 
-### 4. Integración Amplia vs Estrecha
-- **Mi elección**: Implementé la **Integración Amplia**, ejecutando los tests directamente contra la API ya desplegada en QA con Docker Compose. Elegí esta opción porque me permite probar la infraestructura real completa (red, contenedores y PostgreSQL) con mínima configuración extra.
+### 3. Del tag a la imagen, en un paso
+`git rev-list -n1 v7.0.0` devuelve el commit; la imagen de ese commit se llama `…-backend:sha-<commit>` / `…-frontend:sha-<commit>` y está en mis dos paquetes. Volver a esa versión es mandarle esa etiqueta al hook (el mismo mecanismo del deploy).
 
-### 5. Resiliencia, Cold Start y Flaky Tests
-- **Cold Start y Timeouts**: Configuré un bucle de comprobación con `curl` que espera a que QA responda antes de lanzar las pruebas, evitando fallos por arranque lento.
-- **Evitar Flaky Tests**: Reemplacé los `sleep()` fijos por los selectores con *auto-waiting* implícito de Playwright y usé aserciones directas como `expect(btn).toBeDisabled()`.
+### 4. Cómo compruebo desde afuera que un entorno EJECUTA mi imagen
+En los *Events* de cada servicio, el deploy dice «Triggered via Deploy Hook» y nombra la imagen `sha-<commit>` de esa corrida; el log de la corrida muestra el mismo `imgURL` en el deploy a QA y en el de PROD; y esa etiqueta existe en el paquete. Un deploy hecho a mano desde el panel se nota: no dice «Triggered via Deploy Hook» y no hay corrida que lo respalde.
+**Lo que el smoke NO prueba**: sólo pregunta «¿respondés?». Si el deploy falló, el servicio sigue sirviendo la versión anterior y el smoke da verde. Cerrarlo (concepto, no implementado): que `/health` devuelva el commit que corre y que el smoke lo compare con `github.sha`.
 
-### 6. Misma Imagen de Frontend en QA y PROD
-- **Configuración Nginx**: Utilicé la plantilla `default.conf.template` para inyectar `${BACKEND_URL}` en tiempo de ejecución. De esta forma, uso una única imagen inmutable en frontend para QA (`http://backend:3001`) y PROD.
+### 5. Las dos suites: qué elegí y qué no
+- **Integración** (`frontend/e2e/api.spec.js`, Playwright con el fixture `request`, **sin navegador y sin dobles**), contra la **api de QA desplegada** (`API_BASE_URL`), con la base real de Neon: (1) `GET /api/dashboard` devuelve la estructura leída de la base; (2) alta + verificación en la base + borrado + verificación de que ya no está; (3) alta inválida → HTTP 400 **y** la cantidad de gastos no cambia. La que crea un dato usa un nombre único (con la hora) y lo borra.
+- **E2E** (`frontend/e2e/gastos.spec.js`, Chromium), contra el **front de QA** (`E2E_BASE_URL`): crear → verlo → borrarlo, dato inválido (título vacío: el botón queda deshabilitado y no se crea nada) y un flujo de fechas (el selector de vencimientos se arma desde la fecha actual, con el reloj del navegador fijado). Además hay una prueba de navegación inicial que es un *smoke* (no cuenta como flujo). Sin `page.route` ni mocks, sin `test.skip`.
+- **Qué NO puse en e2e**: cálculos de cuotas, recargos, prioridades (eso lo cubren los unit tests del TP5; repetirlo en e2e sería lento y frágil). **Qué NO puse en integración**: la pantalla.
+- **Por qué no es lo mismo integración que e2e**: la integración le habla directo a la api y prueba que *api + base* se entienden (lo que un doble no ve: tipos de columna, restricciones, errores reales de Postgres). La e2e prueba que *una persona puede usar la app*, y cuando se pone roja no dice *quién* se rompió; juntas dan un diagnóstico.
 
-### 7. Dificultades Encontradas y Soluciones
-- **Aislamiento de Máquinas Virtuales en GitHub Actions**: Cada job de `ubuntu-latest` corre en una VM limpia. Los contenedores de `deploy-qa` se destruían al terminar el job. Lo resolví agregando `docker compose -f compose.qa.yml up -d` dentro de los jobs `integracion` y `e2e` para reactivar los contenedores en cada runner.
-- **Locator de Playwright `isEnabled()`**: `isEnabled()` en un elemento deshabilitado espera hasta agotar el timeout de 60s. Lo solucioné usando `await expect(btnGuardar).toBeDisabled();` para verificar de forma inmediata el estado.
+| integración | e2e | qué se rompió |
+|---|---|---|
+| 🟢 | 🔴 | el front (la api está sana, la pantalla no la usa bien) |
+| 🔴 | ⬜ no corre | la api o la base |
+| 🟢 | 🟢 | nada de lo que estas pruebas ven |
 
-### 8. Declaración de Uso de Inteligencia Artificial
-- **Uso de IA**: Consulté asistencia de IA para estructurar el YAML de GitHub Actions con los jobs de E2E e Integración, y para resolver el comportamiento de locators en Playwright.
-- **Verificación realizada**: Ejecuté y verifiqué localmente y en GitHub Actions todas las suites, comprobé la rotura intencional con freno en `deploy-prod`, corregí el código, completé los 5 jobs en verde con la aprobación manual y creé la release `v7.0.0`.
-### 9. Fuente única de verdad de datos (limpieza previa al TP8)
+- **Mi par verde/rojo**: ⏳ PENDIENTE: rompo el front (cambio el texto del botón «Guardar Obligación» sin tocar `e2e/`): la integración queda verde, la e2e roja, `deploy-prod` ni aparece para aprobar, y descargo los dos reportes. Se completa con el link de la corrida.
+
+### 6. Integración amplia, no estrecha
+Mi integración es **amplia**: le habla a la api **ya desplegada** en QA con su base real. **Qué gana**: casi no necesita configuración, prueba además que el despliegue quedó bien, y no tengo que levantar una base en el pipeline. **Qué pierde**: depende de que QA esté despierto y es menos aislada (la estrecha, con la api armada dentro del job y una base descartable, no se contamina con otras corridas y llega antes porque no necesita deploy).
+
+### 7. Cold start, timeouts y tests flaky
+QA duerme y despierta lento. El smoke previo despierta QA, y la configuración de Playwright lleva tiempos largos (60 s por test, 15 s por aserción) y **un** reintento, sin `sleep` fijos (uso la espera automática de Playwright). Un test *flaky* es el que a veces falla sin que el código cambie: es peor que no tener test porque entrena al equipo a ignorar el rojo. Un test que pasa recién en el reintento aparece como *flaky* en el reporte aunque la corrida esté verde: por eso abro el reporte igual.
+
+### 8. La misma imagen del front en QA y en PROD
+La dirección del backend **no está dentro de la imagen**: nginx la lee al arrancar de la plantilla `default.conf.template` con `${BACKEND_URL}` y `${DNS_RESOLVER}`. En Render, cada front recibe por variable de entorno la URL de **su** api (`BACKEND_URL` sin barra final) y `DNS_RESOLVER=8.8.8.8`. **Por variable**: `BACKEND_URL`, `DNS_RESOLVER`, `PORT`. **Adentro de la imagen**: el código del front ya compilado y la plantilla de nginx. El front pide siempre a su mismo origen (`/api/...`) y nginx lo reenvía.
+
+### 9. Mi QA es uno solo: límite conocido de la cadena
+QA lo comparten todas las corridas. Con dos merges seguidos, el `deploy-qa` de la corrida B puede cambiar la imagen de QA mientras la integración o la e2e de la A están corriendo: ves un rojo que no es de tu código o, peor, un verde que probó parte de la imagen de B. **Cómo lo reconocería**: en *Events* del servicio de QA veo qué imagen está corriendo y comparo la hora del `deploy-qa` de B con la de las pruebas de A. **Qué hago**: la corrida vieja se **rechaza a mano, con motivo** (el `concurrency` no la cancela: una corrida esperando aprobación no está «en cola»), no re-corro sus jobs y sigo con la nueva. **Regla**: un merge por vez mientras la cadena está corriendo. Un equipo real lo resolvería con un entorno por corrida.
+
+### 10. El gate: qué lo hace poder decir que no
+`deploy-prod` tiene `needs: e2e`, y la e2e `needs: integracion`, que a su vez `needs: deploy-qa`. Nada en ese tramo lo desarma (no hay `continue-on-error`, ni `|| true`, ni `if: always()`; el único `!cancelled()` está en los pasos que publican reporte). Las dos suites viven en el mismo workflow y corren con el mismo `push` a `main`. **Qué clase de bug NO ataja**: lo que los pocos flujos no recorren, y lo que sólo pasa en producción con usuarios y datos reales.
+
+### 11. Fuente única de verdad de datos (limpieza previa al TP8)
 - **Backend sin datos simulados**: se eliminaron `mockExpenses`/`mockCategories` del controller. Antes, si Postgres fallaba, la API respondía 200/201 con datos en memoria y ocultaba el problema (un test de integración podía pasar con la base caída). Ahora responde HTTP 500 y el pipeline lo detecta. Además, el pago usa una transacción con un único cliente del pool (`BEGIN/COMMIT/ROLLBACK`) y el duplicado de títulos se valida contra la base real.
-- **Frontend sin datos falsos**: se eliminaron `DEFAULT_DATA` y `DEFAULT_CATEGORIES`. Las categorías vienen de la API y, después de cada alta/pago/borrado, la pantalla se recarga desde la base. Así se usan los `id` reales de Postgres (antes se usaba `Date.now()`, y el borrado no se reflejaba en la base).
-- **Seed**: `seed.sql` queda solo con lo necesario (categorías + presupuesto, idempotente) y la categoría 3 pasó de `Tarjeta` a `Cuota` (la lógica de cuotas compara ese nombre). Los gastos de ejemplo se eliminaron: QA y PROD no deben tener datos falsos y los tests crean y borran sus propios datos.
+- **Frontend sin datos falsos**: se eliminaron `DEFAULT_DATA` y `DEFAULT_CATEGORIES`. Las categorías vienen de la API y, después de cada alta/pago/borrado, la pantalla se recarga desde la base. Así se usan los `id` reales de Postgres.
+- **Seed**: `seed.sql` queda solo con lo necesario (categorías + presupuesto, idempotente) y la categoría 3 pasó de `Tarjeta` a `Cuota` (la lógica de cuotas compara ese nombre). QA y PROD no tienen datos falsos y los tests crean y borran sus propios datos.
 - **E2E**: se acepta el `window.confirm` con `page.once('dialog', ...)`, se localiza la fila por título exacto y se recarga la página para comprobar que el gasto realmente se guardó/borró en la base.
 - **Preparación para la nube**: `db.js` admite SSL con `DB_SSL=true` (Neon) y las columnas DATE se devuelven como texto para evitar corrimientos de zona horaria.
+
+### 12. Dificultades encontradas y soluciones
+- **Versión anterior en `localhost`**: mi primer TP7 corría QA con Docker Compose dentro de los jobs de integración y e2e (cada job es una VM limpia, así que levantaba los contenedores de nuevo). Lo reemplacé por Render + Neon: las suites le pegan a las URLs públicas de QA, que son variables del repositorio.
+- **Locator de Playwright `isEnabled()`**: en un elemento deshabilitado espera hasta agotar el timeout; usé `expect(btn).toBeDisabled()`.
+- **Hooks en secrets del repositorio** en lugar de secrets de environment: los moví a `qa` y `production`.
+- **Ciclo de deploy lento** (8–12 min por merge entre checks, deploy y smoke): por eso agrupo cambios en un mismo PR.
+
+### 13. Declaración de uso de IA
+Usé asistencia de IA (Claude) para estructurar el YAML (deploy con `imgURL`, jobs de integración y e2e), los locators de Playwright y la redacción de esta sección. **Verificación**: leí los specs y puedo explicar qué verifica cada test, contra qué entorno corre y qué pasa si falla; ejecuté las suites localmente y en GitHub Actions; provoqué yo la rotura del front y revisé los dos reportes; y comprobé en Render el `sha-` de cada deploy.

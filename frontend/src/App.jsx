@@ -493,7 +493,7 @@ export default function App() {
             FinFix
           </h1>
           <p style={{ fontSize: '0.95rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '20px' }}>
-            Sistema de Control de Gastos Mensuales
+            Control de Gastos Mensuales: sabé qué pagás y cuándo vence
           </p>
 
           <div style={{ background: 'var(--bg-subtle)', padding: '12px 18px', borderRadius: '999px', display: 'inline-block', marginBottom: '28px', border: '1px solid var(--border-color)' }}>
@@ -528,7 +528,7 @@ export default function App() {
               FinFix
               <span className="period-pill">{data?.currentPeriodName || currentPeriodLabel}</span>
             </h1>
-            <p>Sistema de Control de Gastos Mensuales</p>
+            <p>Control de Gastos Mensuales: sabé qué pagás y cuándo vence</p>
           </div>
         </div>
 
