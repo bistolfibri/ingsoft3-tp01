@@ -10,5 +10,5 @@ export default defineConfig({
         screenshot: 'only-on-failure',// Captura de pantalla automática en caso de falla
     },
     retries: 1,                     // 1 reintento para evitar fallos por demoras de red
-    reporter: [['html', { open: 'never' }], ['list']],
+    reporter: [['html', { open: 'never' }], ['list'], ['json', { outputFile: 'pw-results/results.json' }]],   // el json alimenta el resumen del run
 })
