@@ -27,3 +27,6 @@ Thumbs.db
 playwright-report/
 test-results/
 
+
+# Reportes de cobertura (se generan en cada corrida y el pipeline los publica como artefacto)
+coverage/
