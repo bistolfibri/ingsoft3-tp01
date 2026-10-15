@@ -39,6 +39,25 @@ jobs:
           name: coverage-backend
           path: ./backend/coverage
 
+      - name: Resumen de cobertura del Backend en el Summary del run
+        if: always()
+        working-directory: ./backend
+        run: |
+          node -e "
+          const fs=require('fs');
+          const f='coverage/coverage-summary.json';
+          let out='### Cobertura del Backend (unit tests)\\n\\n';
+          if(!fs.existsSync(f)){out+='No se generó el reporte de cobertura (falló antes).\\n';}
+          else{
+            const t=JSON.parse(fs.readFileSync(f)).total;
+            out+='| Métrica | Cobertura | Cubiertas / Total |\\n|---|---|---|\\n';
+            for(const k of ['lines','statements','functions','branches']){
+              out+='| '+k+' | '+t[k].pct+'% | '+t[k].covered+' / '+t[k].total+' |\\n';
+            }
+          }
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,out);
+          "
+
       - name: Entrar al registry (ghcr.io)
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: docker/login-action@v4
@@ -90,6 +109,25 @@ jobs:
         with:
           name: coverage-frontend
           path: ./frontend/coverage
+
+      - name: Resumen de cobertura del Frontend en el Summary del run
+        if: always()
+        working-directory: ./frontend
+        run: |
+          node -e "
+          const fs=require('fs');
+          const f='coverage/coverage-summary.json';
+          let out='### Cobertura del Frontend (unit tests)\\n\\n';
+          if(!fs.existsSync(f)){out+='No se generó el reporte de cobertura (falló antes).\\n';}
+          else{
+            const t=JSON.parse(fs.readFileSync(f)).total;
+            out+='| Métrica | Cobertura | Cubiertas / Total |\\n|---|---|---|\\n';
+            for(const k of ['lines','statements','functions','branches']){
+              out+='| '+k+' | '+t[k].pct+'% | '+t[k].covered+' / '+t[k].total+' |\\n';
+            }
+          }
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,out);
+          "
 
       - name: Entrar al registry (ghcr.io)
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'

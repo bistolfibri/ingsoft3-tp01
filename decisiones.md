@@ -121,10 +121,12 @@ Este documento registra de forma incremental todas las decisiones técnicas, de 
 - **Frontend (`api.js`)**: Se testearon las funciones del cliente de servicios HTTP (`fetchDashboard`, `createExpense`, `deleteExpense`), verificando la construcción de peticiones y el manejo de excepciones de red y validación.
 
 ### 2. Medición de Cobertura y Justificación de Umbrales (Quality Gate)
-En lugar de copiar un número arbitrario, defini los umbrales de cobertura basandome directamente en mi medición real sobre el código de negocio (`src/services/`):
-- **Backend**: Medición base de **72.72% en Líneas** y **50.89% en Ramas**. Fije el umbral de freno en **70% de Líneas** y **50% de Ramas**.
-- **Frontend**: Medición base de **59.64% en Líneas** y **75.00% en Ramas**. Fije el umbral de freno en **55% de Líneas** y **70% de Ramas**.
-- **Justificación**: Deje un margen técnico exigente (de 2 a 4 puntos porcentuales) respecto a mi medición real para tolerar pequeñas refactorizaciones, pero garantizando un freno automático estricto que bloquea el merge si cualquier Pull Request decae la cobertura respecto a mi estándar entregado. Obliga a agregar un test automaticamente luego de agregar una función para mayor seguridad ya que, es una página que requiere muchos calculos específicos. 
+Los umbrales salen de mi medición real sobre el código de negocio (`src/services/`), no de un número copiado. Mido con `npm run test:coverage` (v8) y el pipeline lo vuelve a medir en cada corrida:
+- **Backend**: medición actual **82.82 % de líneas** y **61.47 % de ramas** (25 tests entre ambos lados; 18 son del backend). Umbral de freno: **80 % de líneas** y **58 % de ramas** (en `backend/vitest.config.js`).
+- **Frontend**: medición actual **59.64 % de líneas** y **75.00 % de ramas**. Umbral de freno: **55 % de líneas** y **70 % de ramas** (en `frontend/vite.config.js`).
+- **Justificación**: dejo un margen chico (unos 3–5 puntos) por debajo de lo medido. Si un PR agrega lógica sin tests, el porcentaje baja de ese margen y el job `build-*` se pone rojo, y como es check requerido, no se puede mergear. Un margen grande (por ejemplo 20 puntos) dejaría pasar código sin testear; uno de 0 puntos frenaría por cualquier refactor menor.
+- **Historia honesta**: al principio medí 72.72 % / 50.89 % en el backend y puse umbrales más bajos. Después de agregar el test de la rama sin cubrir (sección 4) la medición subió y subí el umbral para que el gate siga siendo exigente.
+- **Dónde se ve**: el job escribe una tabla de cobertura (líneas, sentencias, funciones y ramas) en la pestaña **Summary** de cada corrida, para backend y frontend, y además sube el reporte HTML como artefacto (`coverage-backend`, `coverage-frontend`).
 
 ### 3. Exclusiones Legítimas de Cobertura
 Excluí explícitamente de la medición los archivos sin comportamiento o de cableado de infraestructura:
@@ -133,9 +135,10 @@ Excluí explícitamente de la medición los archivos sin comportamiento o de cab
 - **Razón**: Medir pantallas de interfaz gráfica en los unit tests distorsiona la métrica. Como vimos, la interfaz será testeada mediante pruebas End-to-End en el TP7. Excluir el arranque no es hacer trampa: es medir la calidad sobre la lógica que importa.
 
 ### 4. Ejercicio de la Rama de Código No Cubierta (Obligatorio)
-- **Línea identificada**: En `backend/src/services/expenseRules.js` (líneas 155-157), la condición `if (diffDays >= 0 && diffDays <= 3)` evalúa las obligaciones que vencen en los próximos 3 días.
-- **Entrada concreta que la recorrería**: Una obligación con `due_date` configurada a 2 días posteriores a la fecha actual (`currentDate`).
-- **Decisión tomada**: Se documentó el camino y se mantuvo cubierta la rama dentro de la suite unitaria.
+- **Hallazgo**: con el reporte de cobertura, el backend mostraba sin cubrir el tramo de `determineExpenseStatusAndPriority` en `backend/src/services/expenseRules.js` (aprox. líneas 152–162): la condición `if (diffDays >= 0 && diffDays <= 3)` (devuelve `PROXIMO_VENCER` / prioridad `ALTA`), el tramo de 4 a 15 días (`PENDIENTE` / `MEDIA`) y el caso por defecto (`PENDIENTE` / `BAJA`).
+- **Entrada concreta que la recorre**: una obligación con `due_date` 2 días posterior a la fecha actual (`currentDate`): por ejemplo vence `2026-08-12` y hoy es `2026-08-10`.
+- **Decisión tomada**: **agregué el test** (en `expenseRules.test.js`: uno para `PROXIMO_VENCER` y otro para `PENDIENTE` media y baja). Es lógica de negocio importante: avisa al usuario que algo está por vencer. Resultado: la cobertura del backend pasó de 75.75 % a 82.82 % en líneas y de 54.09 % a 61.47 % en ramas, y por eso subí el umbral.
+- **Lo que sigue sin cubrir** (líneas ~167–184 y 194): ramas de validación de entrada. Es un riesgo conocido y aceptado por ahora; si quedara sin cubrir lo que importa, mi decisión sería documentarlo, no esconderlo.
 
 ### 5. Inyección de Dependencias y Mocks (Dobles de Riesgo)
 Para cumplir con el requisito obligatorio de Mocks sin tocar dependencias reales:
@@ -144,18 +147,18 @@ Para cumplir con el requisito obligatorio de Mocks sin tocar dependencias reales
 
 ### 6. Enlaces Comprobables de Evidencia en GitHub
 - **Resumen de Cobertura y Artefactos Descargables**: [Workflow Run #36328041640](https://github.com/bistolfibri/ingsoft3-tp01/actions/runs/36328041640)
-- **Corrida ROJA Bloqueada por Umbral**: [Job Build-Backend FAILED por Cobertura < 70%](https://github.com/bistolfibri/ingsoft3-tp01/actions/runs/36328041640/job/108644501261?pr=29)
+- **Corrida ROJA Bloqueada por Umbral**: [Job Build-Backend FAILED por cobertura bajo el umbral](https://github.com/bistolfibri/ingsoft3-tp01/actions/runs/36328041640/job/108644501261?pr=29)
 - **Pull Request N° 1 Mergeado (Secuencia Rojo → Fix → Verde → Merge)**: [PR #29](https://github.com/bistolfibri/ingsoft3-tp01/pull/29)
 - **Pull Request N° 2 Abierto en ROJO (Prueba Viva de Bloqueo Vigente)**: [PR #30](https://github.com/bistolfibri/ingsoft3-tp01/pull/30)
 
-### 8. Dificultades Encontradas y Soluciones
+### 7. Dificultades Encontradas y Soluciones
 - **Conflicto de Peer Dependencies entre Vite 5 y Vitest 5**: En el frontend, `npm install` arrojó error `ERESOLVE` por la versión de Vite. Se resolvió fijando `vitest@^1.6.0` con la bandera `--legacy-peer-deps`.
 - **Distorsión del Coverage por Pantalla de UI**: Al medir todo el frontend, `App.jsx` (1.200 líneas) bajaba el porcentaje a 2.65%. Se resolvió configurando `include: ['src/services/**/*.js']` en `vite.config.js` para enfocar la medición en los servicios de API.
 - **Falso Positivo en PR #30**: La primera función de prueba corta no alcanzó a bajar la cobertura general por debajo del 70%. Se resolvió agregando la función `evaluarRiesgoCrediticioYPromociones` de 30 líneas con múltiples `if`, provocando la caída efectiva al 60.8% y activando el freno del gate.
 
-### 9. Declaración de Uso de Inteligencia Artificial
+### 8. Declaración de Uso de Inteligencia Artificial
 - **Uso de IA**: Se utilizó asistencia de IA como guía técnica para configurar los reportes de cobertura en Vitest v8 (`@vitest/coverage-v8`), redactar los stubs de `vi.stubGlobal` para `fetch` en frontend y estructurar las justificaciones de umbrales.
-- **Verificación realizada**: Todos los 19 unit tests, las mediciones de cobertura, las corridas en rojo por umbral y las fusiones de los PRs #29 y #30 fueron ejecutados, probados y verificados manualmente en la terminal local y en la interfaz web de GitHub.
+- **Verificación realizada**: Los 25 unit tests (18 backend y 7 frontend), las mediciones de cobertura, las corridas en rojo por umbral y las fusiones de los PRs #29 y #30 fueron ejecutados, probados y verificados manualmente en la terminal local y en la interfaz web de GitHub.
 
 ---
 

@@ -14,6 +14,7 @@ export default defineConfig({
     exclude: [...configDefaults.exclude, 'e2e/**'], // 👈 EXCLUYE PLAYWRIGHT DE VITEST
     coverage: {
       provider: 'v8',
+      reporter: ['text', 'html', 'json-summary'],
       include: ['src/services/**/*.js'],
       thresholds: {
         lines: 55,
