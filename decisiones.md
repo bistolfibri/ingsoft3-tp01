@@ -174,6 +174,7 @@ Para cumplir con el requisito obligatorio de Mocks sin tocar dependencias reales
 | **Cadena, eslabón 3 — corrida de `main` donde «construir y publicar la imagen» es el ÚLTIMO paso** | [job build-backend de la corrida de main](https://github.com/bistolfibri/ingsoft3-tp01/actions/runs/38779126083/job/116574433745) (paso 10 = construir y publicar, después sólo `Post …`) |
 | **QA (vivo)** | API: https://finfix-api-qa.onrender.com/health · Front: https://finfix-front-qa.onrender.com |
 | **PROD (vivo)** | API: https://finfix-api-prod.onrender.com/health · Front: https://finfix-front-prod.onrender.com |
+| **Flujo completo aprobado (QA verde → «Waiting for review» → aprobación → PROD verde)** | [Run #94](https://github.com/bistolfibri/ingsoft3-tp01/actions/runs/38812623770): aprobado por `bistolfibri` en el environment `production`, con comentario |
 | **Deploy a PROD RECHAZADO con motivo** | ⏳ PENDIENTE: link a la corrida (se completa después de hacer el rechazo) |
 | **Release `v6.0.0`** | ⏳ PENDIENTE: link a la release (se completa después de taggear el commit que está en PROD) |
 
