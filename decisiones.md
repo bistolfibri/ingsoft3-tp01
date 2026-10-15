@@ -175,7 +175,7 @@ Para cumplir con el requisito obligatorio de Mocks sin tocar dependencias reales
 | **QA (vivo)** | API: https://finfix-api-qa.onrender.com/health · Front: https://finfix-front-qa.onrender.com |
 | **PROD (vivo)** | API: https://finfix-api-prod.onrender.com/health · Front: https://finfix-front-prod.onrender.com |
 | **Flujo completo aprobado (QA verde → «Waiting for review» → aprobación → PROD verde)** | [Run #94](https://github.com/bistolfibri/ingsoft3-tp01/actions/runs/38812623770): aprobado por `bistolfibri` en el environment `production`, con comentario |
-| **Deploy a PROD RECHAZADO con motivo** | ⏳ PENDIENTE: link a la corrida (se completa después de hacer el rechazo) |
+| **Deploy a PROD RECHAZADO con motivo** | [Run #96](https://github.com/bistolfibri/ingsoft3-tp01/actions/runs/38818190986): rechazado por `bistolfibri` en `production` con el comentario «Rechazo este run: entró un merge más nuevo (el link al flujo aprobado). Apruebo sólo el más reciente para que PROD no reciba dos deploys sueltos.». El run más nuevo ([#98](https://github.com/bistolfibri/ingsoft3-tp01/actions/runs/38818543465)) sí se aprobó. |
 | **Release `v6.0.0`** | ⏳ PENDIENTE: link a la release (se completa después de taggear el commit que está en PROD) |
 
 > Las URLs de QA y PROD son del plan gratuito de Render: si nadie las usó en los últimos ~15 minutos, la primera visita tarda alrededor de un minuto en responder (cold start). Es normal.
