@@ -283,7 +283,7 @@ Usé asistencia de IA (Claude) para estructurar el workflow, los jobs de deploy 
 | Recurso | Enlace |
 | :--- | :--- |
 | **Paquetes públicos con etiqueta `sha-…`** | [backend](https://github.com/bistolfibri/ingsoft3-tp01/pkgs/container/ingsoft3-tp01-backend) · [frontend](https://github.com/bistolfibri/ingsoft3-tp01/pkgs/container/ingsoft3-tp01-frontend) (ej.: `sha-2d17b10514e326ef0e024328fc6f0feb539fca00`) |
-| **Corrida donde la INTEGRACIÓN quedó VERDE y la e2e ROJA** | ⏳ PENDIENTE: commit que rompió la app + link a la corrida + los dos reportes (`playwright-report-integracion` en verde y `playwright-report-e2e` en rojo) |
+| **Corrida donde la INTEGRACIÓN quedó VERDE y la e2e ROJA** | Run #90 · commit que rompió la app: 842dfff (cambia el texto del botón en frontend/src/App.jsx, sin tocar e2e/) · artefactos del run: playwright-report-integracion (3 pruebas pasaron) y playwright-report-e2e (2 fallaron y 2 pasaron) |
 | **Corrida completa en VERDE hasta PROD** | ⏳ PENDIENTE: link (incluye la aprobación en `production`) |
 | **Release `v7.0.0`** | ⏳ PENDIENTE: link |
 | **QA (vivo)** | API: https://finfix-api-qa.onrender.com/health · Front: https://finfix-front-qa.onrender.com |
@@ -321,7 +321,7 @@ En los *Events* de cada servicio, el deploy dice «Triggered via Deploy Hook» y
 | 🔴 | ⬜ no corre | la api o la base |
 | 🟢 | 🟢 | nada de lo que estas pruebas ven |
 
-- **Mi par verde/rojo**: ⏳ PENDIENTE: rompo el front (cambio el texto del botón «Guardar Obligación» sin tocar `e2e/`): la integración queda verde, la e2e roja, `deploy-prod` ni aparece para aprobar, y descargo los dos reportes. Se completa con el link de la corrida.
+- **Mi par verde/rojo**: rompí el front cambiando el texto del botón «Guardar Obligación» por «Crear Gasto» sin tocar e2e/ (commit 842dfff). El smoke de QA dio verde (el sistema respondía), la integración quedó verde (3 pruebas pasaron: la api y la base estaban sanas) y la e2e quedó roja (fallaron los tests 2 y 3, que buscan ese botón; en el reporte se ven la captura y la traza). deploy-prod no arrancó. Lo leo con la tabla de arriba: integración verde + e2e roja = se rompió el front, no la api ni la base. Si hubiera roto la api, la integración habría fallado y la e2e ni habría corrido.
 
 ### 6. Integración amplia, no estrecha
 Mi integración es **amplia**: le habla a la api **ya desplegada** en QA con su base real. **Qué gana**: casi no necesita configuración, prueba además que el despliegue quedó bien, y no tengo que levantar una base en el pipeline. **Qué pierde**: depende de que QA esté despierto y es menos aislada (la estrecha, con la api armada dentro del job y una base descartable, no se contamina con otras corridas y llega antes porque no necesita deploy).
