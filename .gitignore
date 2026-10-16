@@ -30,3 +30,8 @@ test-results/
 
 # Reportes de cobertura (se generan en cada corrida y el pipeline los publica como artefacto)
 coverage/
+# Terraform: el estado tiene contraseñas en texto plano, jamás se sube
+*.tfstate
+*.tfstate.*
+.terraform/
+*.tfvars
