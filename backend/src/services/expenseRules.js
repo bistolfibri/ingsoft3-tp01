@@ -198,7 +198,7 @@ export async function fetchAndCalculateMetrics(repository, totalBudget, currentY
 }
 
 /**
- * Función nueva para demostrar el freno del Quality Gate (Sin tests a propósito)
+ * Descuento por antigüedad: 5 % desde 1 año, 10 % desde 3 y 15 % desde 5.
  */
 export function calcularDescuentoAntiguedad(antiguedadAnios, montoGasto) {
   if (!antiguedadAnios || antiguedadAnios <= 0) {

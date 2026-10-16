@@ -217,6 +217,23 @@ jobs:
         run: npx playwright test e2e/api.spec.js
         working-directory: ./frontend
 
+      - name: Resumen de integración en el Summary del run
+        if: ${{ !cancelled() }}
+        working-directory: ./frontend
+        run: |
+          node -e "
+          const fs=require('fs');
+          const f='pw-results/results.json';
+          let out='### Integración contra la api de QA (Playwright)\\n\\n';
+          if(!fs.existsSync(f)){out+='No se generó el resultado de las pruebas (falló antes de correrlas).\\n';}
+          else{
+            const st=JSON.parse(fs.readFileSync(f)).stats;
+            out+='| Pasaron | Fallaron | Flaky | Salteadas |\\n|---|---|---|---|\\n';
+            out+='| '+st.expected+' | '+st.unexpected+' | '+st.flaky+' | '+st.skipped+' |\\n';
+          }
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,out);
+          "
+
       - name: Subir Reporte de Integración como Artefacto
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v4
@@ -251,6 +268,23 @@ jobs:
           E2E_BASE_URL: ${{ vars.QA_FRONT_URL }}
         run: npx playwright test e2e/gastos.spec.js
         working-directory: ./frontend
+
+      - name: Resumen de e2e en el Summary del run
+        if: ${{ !cancelled() }}
+        working-directory: ./frontend
+        run: |
+          node -e "
+          const fs=require('fs');
+          const f='pw-results/results.json';
+          let out='### e2e contra el front de QA (Playwright)\\n\\n';
+          if(!fs.existsSync(f)){out+='No se generó el resultado de las pruebas (falló antes de correrlas).\\n';}
+          else{
+            const st=JSON.parse(fs.readFileSync(f)).stats;
+            out+='| Pasaron | Fallaron | Flaky | Salteadas |\\n|---|---|---|---|\\n';
+            out+='| '+st.expected+' | '+st.unexpected+' | '+st.flaky+' | '+st.skipped+' |\\n';
+          }
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,out);
+          "
 
       - name: Subir Reporte E2E como Artefacto
         if: ${{ !cancelled() }}

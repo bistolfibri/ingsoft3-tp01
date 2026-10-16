@@ -102,4 +102,53 @@ test.describe('Suite 2: Pruebas End-to-End (E2E de Interfaz de Usuario con Chrom
         await expect(selectorMes).not.toContainText('Agosto 2026');
     });
 
+    test('5. Flujo diario: crear una obligación, pagarla (queda PAGADO y se guarda en la base) y borrarla', async ({ page }) => {
+        const tituloUnico = `Gasto E2E Pago ${Date.now()}`;
+
+        // Helper: entrar al listado (la pantalla de bienvenida aparece al cargar o recargar)
+        async function irAlListado() {
+            const btnVer = page.getByRole('button', { name: /Ver Mis Gastos/i });
+            if (await btnVer.isVisible()) {
+                await btnVer.click();
+            }
+        }
+
+        await page.goto('/');
+        await irAlListado();
+
+        // 1. Crear la obligación (vence hoy, así el pago es "a término" y no lleva recargo)
+        await page.getByRole('button', { name: /Agregar Obligación/i }).click();
+        await page.getByPlaceholder(/Ej: Alquiler/i).fill(tituloUnico);
+        await page.getByPlaceholder(/Ej: 45000/i).fill('20000');
+        await page.getByRole('checkbox').uncheck();   // que NO cree un recordatorio para el mes próximo
+        await page.getByRole('button', { name: 'Guardar Obligación' }).click();
+
+        const titulo = page.getByRole('heading', { name: tituloUnico, exact: true });
+        const fila = page.locator('.expense-item').filter({ has: titulo });
+        await expect(fila).toBeVisible();
+        await expect(fila.getByRole('button', { name: 'Pagar' })).toBeVisible();   // todavía no está paga
+
+        // 2. Pagarla: abrir el formulario de pago y confirmar
+        await fila.getByRole('button', { name: 'Pagar' }).click();
+        await expect(page.getByRole('heading', { name: `Registrar Pago — ${tituloUnico}` })).toBeVisible();
+        await page.getByRole('button', { name: 'Confirmar Pago' }).click();
+
+        // 3. El usuario ve el resultado: estado PAGADO y ya no hay botón Pagar en esa fila
+        await expect(fila.getByText('PAGADO')).toBeVisible();
+        await expect(fila.getByRole('button', { name: 'Pagar' })).toHaveCount(0);
+
+        // 4. Se guardó de verdad en la base: al recargar sigue PAGADO
+        await page.reload();
+        await irAlListado();
+        await expect(fila.getByText('PAGADO')).toBeVisible();
+
+        // 5. Limpiar lo que creó (el confirm del navegador hay que aceptarlo) y comprobarlo
+        page.once('dialog', dialog => dialog.accept());
+        await fila.locator('.btn-delete').click();
+        await expect(titulo).toHaveCount(0);
+        await page.reload();
+        await irAlListado();
+        await expect(titulo).toHaveCount(0);
+    });
+
 });

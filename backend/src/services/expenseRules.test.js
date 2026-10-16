@@ -1,7 +1,7 @@
-//contiene 9 Unit Tests organizados con la estructura AAA (Arrange, Act, Assert).
-// Tiene más de 8 tests sobre 4 reglas distintas de FinFix.
-// Incluye 1 Test Parametrizado (it.each).  2 Casos de Error y Borde (montos negativos y pagos inválidos).
-// 1 Test con MOCK obligatorio (vi.fn()) que prueba la función que refactorizamos recién sin tocar PostgreSQL real.
+// Suite de 18 casos de prueba con la estructura AAA (Arrange, Act, Assert), sobre 6 reglas de FinFix.
+// Incluye 2 tests parametrizados (it.each): cuotas y descuento por antigüedad.
+// Incluye casos de error y borde (montos negativos y pagos inválidos).
+// Incluye 1 test con MOCK (vi.fn()) que prueba la función con repositorio inyectado, sin tocar PostgreSQL real.
 
 import { describe, it, expect, vi } from 'vitest';
 import {
@@ -12,7 +12,7 @@ import {
     calculateCategorizedMetrics,
     determineExpenseStatusAndPriority,
     fetchAndCalculateMetrics,
-    calcularDescuentoAntiguedad /*se agregó esta función nueva para demostrar el freno del Quality Gate (sin tests a propósito)*/
+    calcularDescuentoAntiguedad
 } from './expenseRules.js';
 
 describe('FinFix - Suite de Reglas de Negocio Backend', () => {

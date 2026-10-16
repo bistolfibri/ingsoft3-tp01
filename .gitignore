@@ -35,3 +35,5 @@ coverage/
 *.tfstate.*
 .terraform/
 *.tfvars
+
+pw-results/
