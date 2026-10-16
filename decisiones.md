@@ -127,6 +127,7 @@ Los umbrales salen de mi medición real sobre el código de negocio (`src/servic
 - **Justificación**: dejo un margen chico (unos 3–5 puntos) por debajo de lo medido. Si un PR agrega lógica sin tests, el porcentaje baja de ese margen y el job `build-*` se pone rojo, y como es check requerido, no se puede mergear. Un margen grande (por ejemplo 20 puntos) dejaría pasar código sin testear; uno de 0 puntos frenaría por cualquier refactor menor.
 - **Historia honesta**: al principio medí 72.72 % / 50.89 % en el backend y puse umbrales más bajos. Después de agregar el test de la rama sin cubrir (sección 4) la medición subió y subí el umbral para que el gate siga siendo exigente.
 - **Dónde se ve**: el job escribe una tabla de cobertura (líneas, sentencias, funciones y ramas) en la pestaña **Summary** de cada corrida, para backend y frontend, y además sube el reporte HTML como artefacto (`coverage-backend`, `coverage-frontend`).
+- **Dónde corren los tests**: npm ci y npm run test:coverage corren directo en el runner de GitHub, no en una etapa test del Dockerfile. Uso el mismo package-lock.json y Node 20 que usa la imagen. Es válido y más rápido, pero la imagen publicada no es el artefacto exacto que se probó en unitarios. Eso lo compensan la integración y la e2e (TP7), que prueban la imagen ya desplegada.
 
 ### 3. Exclusiones Legítimas de Cobertura
 Excluí explícitamente de la medición los archivos sin comportamiento o de cableado de infraestructura:
@@ -144,6 +145,8 @@ Excluí explícitamente de la medición los archivos sin comportamiento o de cab
 Para cumplir con el requisito obligatorio de Mocks sin tocar dependencias reales:
 - **Backend**: Se creó `fetchAndCalculateMetrics(repository, totalBudget)` utilizando Inyección de Dependencias. En las pruebas unitarias se inyectó un `mockRepository` utilizando `vi.fn()`, verificando que la función llamara a `findAllExpenses()` una sola vez (`toHaveBeenCalledTimes(1)`) sin tocar PostgreSQL real.
 - **Frontend**: En `api.test.js` se interceptó la función global `fetch` del navegador utilizando `vi.stubGlobal('fetch', mockFetch)` y `vi.fn()`, simulando respuestas JSON y errores HTTP 500 sin salir a la red.
+- **Límite del frontend**: los unit tests cubren solo api.js (57 líneas). La lógica de App.jsx no tiene unitarios; la cubre la e2e del TP7.
+- **Por qué el front no usa inyección**: acá reemplazo fetch global con vi.stubGlobal en vez de pasarlo por parámetro como en el backend. Cumple “no salir a la red”, pero acopla el test a un global. Lo asumo porque api.js es un módulo chico de llamadas directas.
 
 ### 6. Enlaces Comprobables de Evidencia en GitHub
 - **Resumen de Cobertura y Artefactos Descargables**: [Workflow Run #36328041640](https://github.com/bistolfibri/ingsoft3-tp01/actions/runs/36328041640)
