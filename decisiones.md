@@ -360,6 +360,14 @@ QA lo comparten todas las corridas. Con dos merges seguidos, el `deploy-qa` de l
 Usé asistencia de IA (Claude) para estructurar el YAML (deploy con `imgURL`, jobs de integración y e2e), los locators de Playwright y la redacción de esta sección. **Verificación**: leí los specs y puedo explicar qué verifica cada test, contra qué entorno corre y qué pasa si falla; ejecuté las suites localmente y en GitHub Actions; provoqué yo la rotura del front y revisé los dos reportes; y comprobé en Render el `sha-` de cada deploy.
 
 ## TP8 — Infraestructura como Código
+### Enlaces del TP8
+
+| Recurso | Enlace |
+| :--- | :--- |
+| **Carpeta `infra/` en `main`** | https://github.com/bistolfibri/ingsoft3-tp01/tree/main/infra |
+| **PR que subió `infra/`** | https://github.com/bistolfibri/ingsoft3-tp01/pull/65 |
+| **Release `v8.0.0`** | https://github.com/bistolfibri/ingsoft3-tp01/releases/tag/v8.0.0 |
+| **Commit que cierra `infra/`** | [`e4dd051`](https://github.com/bistolfibri/ingsoft3-tp01/commit/e4dd05103b791e04bc35b0ece3ed4a82bdfb37c0) (el que estuvo en `production`) |
 
 ### 1. Riel elegido y versiones fijadas
 Usé el riel canónico: **Terraform + Neon + Render**, el mismo proveedor que vengo usando desde el TP6. Declaré en `infra/` un entorno **nuevo, `preprod`**, que convive con QA y producción sin tocarlos: una base en Neon (proyecto, rol y base) y dos servicios en Render (api y front) que ejecutan la imagen del TP7.
@@ -379,7 +387,7 @@ Usé el riel canónico: **Terraform + Neon + Render**, el mismo proveedor que ve
 - **VS Code no guardó `main.tf`**: `terraform fmt` reescribió el archivo en disco mientras tenía cambios sin guardar, VS Code mostró un conflicto y el `apply` corrió con la versión vieja. Desde entonces guardo siempre antes de correr Terraform.
 - **PowerShell parte los argumentos con punto**: `terraform apply -replace=terraform_data.esquema` falló con `Invalid force-replace address`; hay que escribirlo entre comillas.
 - **La región**: tomé `ohio`, la misma de mis servicios existentes, para que estén en la misma red privada de Render.
-- **Instalación en Windows**: `choco` no estaba instalado, así que instalé Terraform con `winget`. [verificá cómo lo instalaste]
+- - **Instalación en Windows**: `choco` no estaba instalado, así que bajé el zip oficial de HashiCorp y agregué la carpeta al PATH. 
 - **Dato medido**: al recrear los servicios de Render con el mismo nombre, volvieron las mismas URLs (la guía no lo tenía medido).
 
 ### 3. Declaración de uso de IA
