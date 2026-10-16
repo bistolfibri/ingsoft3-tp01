@@ -358,3 +358,30 @@ QA lo comparten todas las corridas. Con dos merges seguidos, el `deploy-qa` de l
 
 ### 13. Declaración de uso de IA
 Usé asistencia de IA (Claude) para estructurar el YAML (deploy con `imgURL`, jobs de integración y e2e), los locators de Playwright y la redacción de esta sección. **Verificación**: leí los specs y puedo explicar qué verifica cada test, contra qué entorno corre y qué pasa si falla; ejecuté las suites localmente y en GitHub Actions; provoqué yo la rotura del front y revisé los dos reportes; y comprobé en Render el `sha-` de cada deploy.
+
+## TP8 — Infraestructura como Código
+
+### 1. Riel elegido y versiones fijadas
+Usé el riel canónico: **Terraform + Neon + Render**, el mismo proveedor que vengo usando desde el TP6. Declaré en `infra/` un entorno **nuevo, `preprod`**, que convive con QA y producción sin tocarlos: una base en Neon (proyecto, rol y base) y dos servicios en Render (api y front) que ejecutan la imagen del TP7.
+
+- **Versiones fijadas**: Terraform v1.16.5, provider `kislerdm/neon` **0.18.0** y provider `render-oss/render` **1.9.1**. El `.terraform.lock.hcl` está commiteado para que cualquier máquina use exactamente los mismos.
+- **Credenciales fuera del código**: `NEON_API_KEY`, `RENDER_API_KEY` y `RENDER_OWNER_ID` viven como variables de entorno de mi terminal; no hay ninguna clave escrita en los `.tf`.
+- **Todo lo que se puede derivar, se deriva**: las variables de conexión de la api (`DB_HOST`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`) salen de los recursos de Neon, y la `BACKEND_URL` del front sale de la URL de su propia api. Nada se copia a mano.
+- **El estado** (`terraform.tfstate`) vive en mi máquina y está en el `.gitignore`: tiene contraseñas en texto plano. Es la única memoria de que preprod es mío, así que no es descartable aunque no se versione.
+- **Por qué un entorno nuevo y no el que ya tenía**: porque el valor de IaC es poder responder "necesito un entorno más" con un archivo y un comando, y porque Render en plan gratuito solo permite crear y destruir, no modificar. Preprod es desechable: lo destruyo al terminar cada sesión para no gastar las 750 horas compartidas de mi workspace.
+- **Lo que comprobé**: `plan` → `apply` crea 6 recursos; el segundo `plan` dice «No changes» (idempotencia); borré a mano la base y el plan lo detectó (drift) y el `apply` lo reparó; creé a mano una base que el código no declara y el plan siguió diciendo «No changes»; `destroy` y `apply` devuelven preprod con su dashboard respondiendo, y el orden del destroy fue front → api → base → rol → proyecto (el inverso al de creación, deducido por Terraform de las referencias). 
+- **Lo que sigue siendo artesanal**: mis servicios de QA y producción y sus deploy hooks los creé clickeando y Terraform no sabe que existen.
+
+### 2. Problemas encontrados y cómo los resolví
+- **`org_id is required` en Neon**: el primer `apply` falló porque Neon ahora exige que todo proyecto pertenezca a una organización y la guía no lo menciona. Lo resolví agregando una variable `neon_org_id` y pasándola al proyecto.
+- **La base nace vacía y mi backend no crea sus tablas**: tras el `apply`, `/health` respondía pero `/api/dashboard` daba `relation "categories" does not exist`. Terraform crea la base, no el esquema. Lo resolví con un `terraform_data` con `local-exec` que corre un script de Node (`infra/init-db.cjs`) y aplica `database/schema.sql` y `seed.sql`, que ya eran idempotentes. Limitación: depende de tener Node en mi máquina y corre solo al crear, no detecta cambios manuales en las tablas.
+- **Salida del script oculta**: Terraform suprime la salida de un `local-exec` si lleva valores sensibles, así que no podía ver por qué fallaba. Redirigí la salida a `infra/init-db.log` (ignorado por `*.log`). Ahí descubrí que el archivo del script estaba vacío por no haberlo guardado.
+- **VS Code no guardó `main.tf`**: `terraform fmt` reescribió el archivo en disco mientras tenía cambios sin guardar, VS Code mostró un conflicto y el `apply` corrió con la versión vieja. Desde entonces guardo siempre antes de correr Terraform.
+- **PowerShell parte los argumentos con punto**: `terraform apply -replace=terraform_data.esquema` falló con `Invalid force-replace address`; hay que escribirlo entre comillas.
+- **La región**: tomé `ohio`, la misma de mis servicios existentes, para que estén en la misma red privada de Render.
+- **Instalación en Windows**: `choco` no estaba instalado, así que instalé Terraform con `winget`. [verificá cómo lo instalaste]
+- **Dato medido**: al recrear los servicios de Render con el mismo nombre, volvieron las mismas URLs (la guía no lo tenía medido).
+
+### 3. Declaración de uso de IA
+- **Uso de IA**: usé Claude como guía paso a paso: me ayudó a entender los conceptos de IaC, a redactar los archivos `.tf`, el script `init-db.cjs` y el `terraform_data`, y a diagnosticar los errores de arriba.
+- **Cómo lo verifiqué**: corrí yo cada comando en mi máquina y leí cada `plan` antes de aplicar. Comprobé las tres cosas con mis ojos: los recursos en las consolas de Neon y Render, el dashboard respondiendo con datos, y los ciclos `destroy` y `apply`. Puedo explicar qué hace cada recurso y leer un plan en voz alta.
