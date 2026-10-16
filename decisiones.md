@@ -121,7 +121,7 @@ Este documento registra de forma incremental todas las decisiones técnicas, de 
 - **Frontend (`api.js`)**: Se testearon las funciones del cliente de servicios HTTP (`fetchDashboard`, `createExpense`, `deleteExpense`), verificando la construcción de peticiones y el manejo de excepciones de red y validación.
 
 ### 2. Medición de Cobertura y Justificación de Umbrales (Quality Gate)
-Los umbrales salen de mi medición real sobre el código de negocio (`src/services/`), no de un número copiado. Mido con `npm run test:coverage` (v8) y el pipeline lo vuelve a medir en cada corrida:
+Los umbrales salen de mi medición real sobre el código de negocio (`src/services/`. Mido con `npm run test:coverage` (v8) y el pipeline lo vuelve a medir en cada corrida:
 - **Backend**: medición actual **82.82 % de líneas** y **61.47 % de ramas** (25 tests entre ambos lados; 18 son del backend). Umbral de freno: **80 % de líneas** y **58 % de ramas** (en `backend/vitest.config.js`).
 - **Frontend**: medición actual **59.64 % de líneas** y **75.00 % de ramas**. Umbral de freno: **55 % de líneas** y **70 % de ramas** (en `frontend/vite.config.js`).
 - **Justificación**: dejo un margen chico (unos 3–5 puntos) por debajo de lo medido. Si un PR agrega lógica sin tests, el porcentaje baja de ese margen y el job `build-*` se pone rojo, y como es check requerido, no se puede mergear. Un margen grande (por ejemplo 20 puntos) dejaría pasar código sin testear; uno de 0 puntos frenaría por cualquier refactor menor.
@@ -177,8 +177,9 @@ Para cumplir con el requisito obligatorio de Mocks sin tocar dependencias reales
 | **Cadena, eslabón 3 — corrida de `main` donde «construir y publicar la imagen» es el ÚLTIMO paso** | [job build-backend de la corrida de main](https://github.com/bistolfibri/ingsoft3-tp01/actions/runs/38779126083/job/116574433745) (paso 10 = construir y publicar, después sólo `Post …`) |
 | **QA (vivo)** | API: https://finfix-api-qa.onrender.com/health · Front: https://finfix-front-qa.onrender.com |
 | **PROD (vivo)** | API: https://finfix-api-prod.onrender.com/health · Front: https://finfix-front-prod.onrender.com |
-| **Deploy a PROD RECHAZADO con motivo** | ⏳ PENDIENTE: link a la corrida (se completa después de hacer el rechazo) |
-| **Release `v6.0.0`** | ⏳ PENDIENTE: link a la release (se completa después de taggear el commit que está en PROD) |
+| **Flujo completo aprobado (QA verde → «Waiting for review» → aprobación → PROD verde)** | [Run #94](https://github.com/bistolfibri/ingsoft3-tp01/actions/runs/38812623770): aprobado por `bistolfibri` en el environment `production`, con comentario |
+| **Deploy a PROD RECHAZADO con motivo** | [Run #96](https://github.com/bistolfibri/ingsoft3-tp01/actions/runs/38818190986): rechazado por `bistolfibri` en `production` con el comentario «Rechazo este run: entró un merge más nuevo (el link al flujo aprobado). Apruebo sólo el más reciente para que PROD no reciba dos deploys sueltos.». El run más nuevo ([#98](https://github.com/bistolfibri/ingsoft3-tp01/actions/runs/38818543465)) sí se aprobó. |
+| **Release `v6.0.0`** | https://github.com/bistolfibri/ingsoft3-tp01/releases/tag/v6.0.0 |
 
 > Las URLs de QA y PROD son del plan gratuito de Render: si nadie las usó en los últimos ~15 minutos, la primera visita tarda alrededor de un minuto en responder (cold start). Es normal.
 
@@ -201,7 +202,7 @@ Si se publicara igual con tests en rojo, estar en el registry dejaría de signif
 No publico `latest`: cada imagen tiene un solo nombre, el de su commit. Los dos paquetes son **públicos** (Render los baja sin credenciales; hacerlos públicos no tiene vuelta atrás).
 
 ### 3. Continuous Delivery, no Continuous Deployment
-Implementé **Continuous Delivery**: todo cambio que pasa la verificación llega **solo** a QA, pero a PROD sólo llega cuando una persona lo aprueba. Corresponde a mi contexto porque FinFix maneja plata de la gente y mi red de seguridad (25 unit tests, 3 pruebas de integración y 3 e2e) es buena pero chica: sacar al humano automatizaría la propagación de errores. Para llegar a Continuous Deployment me faltaría observabilidad real (métricas, alertas, versión visible en `/health`) y tests que cubran más flujos. ¿La querría? Más adelante, sí, para cambios chicos y con rollback rápido.
+Implementé **Continuous Delivery**: todo cambio que pasa la verificación llega **solo** a QA, pero a PROD sólo llega cuando una persona lo aprueba. Corresponde a mi contexto porque FinFix maneja plata de la gente y mi red de seguridad (25 unit tests, 3 pruebas de integración y 3 e2e) es buena pero chica: sacar al humano automatizaría la propagación de errores. Para llegar a Continuous Deployment me faltaría observabilidad real (métricas, alertas, versión visible en `/health`) y tests que cubran más flujos. 
 
 ### 4. Diseño de la cadena y alcance de cada secret
 ```
@@ -216,7 +217,7 @@ build-frontend ┘
 - `deploy-prod` lleva `concurrency: { group: deploy-prod, cancel-in-progress: false }` para que dos deploys a PROD no se pisen.
 
 ### 5. Qué mira mi aprobador antes de aprobar
-No apruebo por reflejo. Antes de hacer clic miro:
+Antes de hacer clic miro:
 1. Que **todos** los jobs anteriores estén verdes (build, smoke de QA, integración y e2e).
 2. Que el commit de **esta** corrida sea el último de `main` (si entró otro merge después, esta corrida está vieja: **no** la apruebo, la rechazo).
 3. Qué cambia el PR (título y archivos): si toca base de datos, variables o el workflow, miro con más cuidado.
@@ -257,13 +258,13 @@ curl -fsS --max-time 30 --get --data-urlencode "imgURL=ghcr.io/bistolfibri/ingso
 # cuando Render → Deploys muestre ese commit como live en los dos servicios:
 echo "rollback: $(( $(date +%s) - INICIO )) s"
 ```
-- **Tiempo medido**: ⏳ PENDIENTE (se completa después de hacerlo: es el tiempo entre el inicio y el *live* del deploy anterior en Render → Deploys del servicio de PROD).
+- **Tiempo medido (lo hice de verdad el 15/10/2026)**: **menos de 1 minuto**. Disparé los dos hooks de PROD con `imgURL=…:sha-2d17b10514e326ef0e024328fc6f0feb539fca00` a las **19:17:53**, y en *Events* de `finfix-api-prod` y de `finfix-front-prod` el «Deploy live» figura a las **19:18** (Render muestra la hora al minuto). En *Deploys* cada deploy dice «Trigger: Deploy Hook» y tardó **10,6 s** (api) y **10,3 s** (front). Comprobé en la pantalla de PROD que volvió el subtítulo anterior de la app y después volví a la versión nueva (`ec0fd95`) con los mismos hooks. Los *Events* de Render no son públicos: los muestro en vivo en la defensa.
 - No uso el botón *Manual Deploy* de Render: despliega la imagen que figura en *Settings → Image* (la de la primera configuración), **no** la que está corriendo, y podría llevar PROD hacia atrás sin avisar.
 - **Lo que el rollback de código NO deshace**: los datos. Si una versión nueva hubiera migrado o borrado columnas o filas en Neon, volver a la imagen anterior no las recupera. Para eso haría falta una copia (backup o *branch* de Neon) tomada antes del deploy.
 - Métrica DORA que ejercita: tiempo de recuperación ante fallos.
 
 ### 12. Release `v6.0.0`
-El tag `v6.0.0` y su release se ponen **sobre el commit que está en PROD** (lo veo en *Deployments → production*), no sobre la punta de `main`, con `gh release create v6.0.0 --generate-notes --verify-tag`. ⏳ PENDIENTE: commit exacto y link (ver «Enlaces de este TP»).
+El tag `v6.0.0` y su release se ponen **sobre el commit que está en PROD** (lo veo en *Deployments → production*), no sobre la punta de `main`, con `gh release create v6.0.0 --generate-notes --verify-tag`.https://github.com/bistolfibri/ingsoft3-tp01/releases/tag/v6.0.0 .
 
 ### 13. Dificultades encontradas y soluciones
 - **Mi primera versión del TP6 desplegaba en `localhost` con Docker Compose** (runner propio) y no en una nube. Esa versión no tenía URLs públicas ni una base por entorno de verdad; la reemplacé por Render + Neon, que es lo que describe este documento.
@@ -286,9 +287,9 @@ Usé asistencia de IA (Claude) para estructurar el workflow, los jobs de deploy 
 | Recurso | Enlace |
 | :--- | :--- |
 | **Paquetes públicos con etiqueta `sha-…`** | [backend](https://github.com/bistolfibri/ingsoft3-tp01/pkgs/container/ingsoft3-tp01-backend) · [frontend](https://github.com/bistolfibri/ingsoft3-tp01/pkgs/container/ingsoft3-tp01-frontend) (ej.: `sha-2d17b10514e326ef0e024328fc6f0feb539fca00`) |
-| **Corrida donde la INTEGRACIÓN quedó VERDE y la e2e ROJA** | ⏳ PENDIENTE: commit que rompió la app + link a la corrida + los dos reportes (`playwright-report-integracion` en verde y `playwright-report-e2e` en rojo) |
-| **Corrida completa en VERDE hasta PROD** | ⏳ PENDIENTE: link (incluye la aprobación en `production`) |
-| **Release `v7.0.0`** | ⏳ PENDIENTE: link |
+| **Corrida donde la INTEGRACIÓN quedó VERDE y la e2e ROJA** | Run #90 · commit que rompió la app: 842dfff (cambia el texto del botón en frontend/src/App.jsx, sin tocar e2e/) · artefactos del run: playwright-report-integracion (3 pruebas pasaron) y playwright-report-e2e (2 fallaron y 2 pasaron) |
+| **Corrida completa en VERDE hasta PROD** | [Run #94](https://github.com/bistolfibri/ingsoft3-tp01/actions/runs/38812623770): build → deploy-qa → integración → e2e → aprobación en `production` (con comentario) → deploy-prod verde (commit `ec0fd95`) |
+| **Release `v7.0.0`** | https://github.com/bistolfibri/ingsoft3-tp01/releases/tag/v7.0.0 |
 | **QA (vivo)** | API: https://finfix-api-qa.onrender.com/health · Front: https://finfix-front-qa.onrender.com |
 | **PROD (vivo)** | API: https://finfix-api-prod.onrender.com/health · Front: https://finfix-front-prod.onrender.com |
 
@@ -314,7 +315,8 @@ En los *Events* de cada servicio, el deploy dice «Triggered via Deploy Hook» y
 
 ### 5. Las dos suites: qué elegí y qué no
 - **Integración** (`frontend/e2e/api.spec.js`, Playwright con el fixture `request`, **sin navegador y sin dobles**), contra la **api de QA desplegada** (`API_BASE_URL`), con la base real de Neon: (1) `GET /api/dashboard` devuelve la estructura leída de la base; (2) alta + verificación en la base + borrado + verificación de que ya no está; (3) alta inválida → HTTP 400 **y** la cantidad de gastos no cambia. La que crea un dato usa un nombre único (con la hora) y lo borra.
-- **E2E** (`frontend/e2e/gastos.spec.js`, Chromium), contra el **front de QA** (`E2E_BASE_URL`): crear → verlo → borrarlo, dato inválido (título vacío: el botón queda deshabilitado y no se crea nada) y un flujo de fechas (el selector de vencimientos se arma desde la fecha actual, con el reloj del navegador fijado). Además hay una prueba de navegación inicial que es un *smoke* (no cuenta como flujo). Sin `page.route` ni mocks, sin `test.skip`.
+- **E2E** (`frontend/e2e/gastos.spec.js`, Chromium), contra el **front de QA** (`E2E_BASE_URL`). Los **tres flujos críticos**, que interactúan, afirman sobre el dato que crean y limpian lo que crean: (2) **crear → verlo en la lista → recargar y comprobar que se guardó → borrarlo → comprobar que ya no está**; (3) **validación**: con el título vacío el botón queda deshabilitado y no se crea nada; (5) **mi flujo de uso diario: crear una obligación → pagarla (queda `PAGADO` y desaparece el botón *Pagar*) → recargar y comprobar que sigue pagada en la base → borrarla**. Elegí pagar porque es lo que mi usuario hace todos los días y, si mañana no anda, es lo primero que se nota; además toca la base (el estado `PAGADO` se guarda en Neon). Además hay dos pruebas que no cuento como flujos: una de navegación inicial (es un *smoke*) y una de fechas (el selector de vencimientos se arma con la fecha actual, con el reloj del navegador fijado). Sin `page.route` ni mocks, sin `test.skip`.
+- **Se lee en la corrida**: cada job de pruebas escribe en el *Summary* del run una tabla con cuántas pasaron, fallaron, quedaron *flaky* y salteadas (hoy: 3 de integración y 5 de e2e, con 0 salteadas), y además publica su reporte HTML como artefacto.
 - **Qué NO puse en e2e**: cálculos de cuotas, recargos, prioridades (eso lo cubren los unit tests del TP5; repetirlo en e2e sería lento y frágil). **Qué NO puse en integración**: la pantalla.
 - **Por qué no es lo mismo integración que e2e**: la integración le habla directo a la api y prueba que *api + base* se entienden (lo que un doble no ve: tipos de columna, restricciones, errores reales de Postgres). La e2e prueba que *una persona puede usar la app*, y cuando se pone roja no dice *quién* se rompió; juntas dan un diagnóstico.
 
@@ -324,7 +326,7 @@ En los *Events* de cada servicio, el deploy dice «Triggered via Deploy Hook» y
 | 🔴 | ⬜ no corre | la api o la base |
 | 🟢 | 🟢 | nada de lo que estas pruebas ven |
 
-- **Mi par verde/rojo**: ⏳ PENDIENTE: rompo el front (cambio el texto del botón «Guardar Obligación» sin tocar `e2e/`): la integración queda verde, la e2e roja, `deploy-prod` ni aparece para aprobar, y descargo los dos reportes. Se completa con el link de la corrida.
+- **Mi par verde/rojo**: rompí el front cambiando el texto del botón «Guardar Obligación» por «Crear Gasto» sin tocar e2e/ (commit 842dfff). El smoke de QA dio verde (el sistema respondía), la integración quedó verde (3 pruebas pasaron: la api y la base estaban sanas) y la e2e quedó roja (fallaron los tests 2 y 3, que buscan ese botón; en el reporte se ven la captura y la traza). deploy-prod no arrancó. Lo leo con la tabla de arriba: integración verde + e2e roja = se rompió el front, no la api ni la base. Si hubiera roto la api, la integración habría fallado y la e2e ni habría corrido.
 
 ### 6. Integración amplia, no estrecha
 Mi integración es **amplia**: le habla a la api **ya desplegada** en QA con su base real. **Qué gana**: casi no necesita configuración, prueba además que el despliegue quedó bien, y no tengo que levantar una base en el pipeline. **Qué pierde**: depende de que QA esté despierto y es menos aislada (la estrecha, con la api armada dentro del job y una base descartable, no se contamina con otras corridas y llega antes porque no necesita deploy).
