@@ -121,7 +121,7 @@ Este documento registra de forma incremental todas las decisiones técnicas, de 
 - **Frontend (`api.js`)**: Se testearon las funciones del cliente de servicios HTTP (`fetchDashboard`, `createExpense`, `deleteExpense`), verificando la construcción de peticiones y el manejo de excepciones de red y validación.
 
 ### 2. Medición de Cobertura y Justificación de Umbrales (Quality Gate)
-Los umbrales salen de mi medición real sobre el código de negocio (`src/services/`), no de un número copiado. Mido con `npm run test:coverage` (v8) y el pipeline lo vuelve a medir en cada corrida:
+Los umbrales salen de mi medición real sobre el código de negocio (`src/services/`. Mido con `npm run test:coverage` (v8) y el pipeline lo vuelve a medir en cada corrida:
 - **Backend**: medición actual **82.82 % de líneas** y **61.47 % de ramas** (25 tests entre ambos lados; 18 son del backend). Umbral de freno: **80 % de líneas** y **58 % de ramas** (en `backend/vitest.config.js`).
 - **Frontend**: medición actual **59.64 % de líneas** y **75.00 % de ramas**. Umbral de freno: **55 % de líneas** y **70 % de ramas** (en `frontend/vite.config.js`).
 - **Justificación**: dejo un margen chico (unos 3–5 puntos) por debajo de lo medido. Si un PR agrega lógica sin tests, el porcentaje baja de ese margen y el job `build-*` se pone rojo, y como es check requerido, no se puede mergear. Un margen grande (por ejemplo 20 puntos) dejaría pasar código sin testear; uno de 0 puntos frenaría por cualquier refactor menor.
@@ -176,7 +176,7 @@ Para cumplir con el requisito obligatorio de Mocks sin tocar dependencias reales
 | **PROD (vivo)** | API: https://finfix-api-prod.onrender.com/health · Front: https://finfix-front-prod.onrender.com |
 | **Flujo completo aprobado (QA verde → «Waiting for review» → aprobación → PROD verde)** | [Run #94](https://github.com/bistolfibri/ingsoft3-tp01/actions/runs/38812623770): aprobado por `bistolfibri` en el environment `production`, con comentario |
 | **Deploy a PROD RECHAZADO con motivo** | [Run #96](https://github.com/bistolfibri/ingsoft3-tp01/actions/runs/38818190986): rechazado por `bistolfibri` en `production` con el comentario «Rechazo este run: entró un merge más nuevo (el link al flujo aprobado). Apruebo sólo el más reciente para que PROD no reciba dos deploys sueltos.». El run más nuevo ([#98](https://github.com/bistolfibri/ingsoft3-tp01/actions/runs/38818543465)) sí se aprobó. |
-| **Release `v6.0.0`** | ⏳ PENDIENTE: link a la release (se completa después de taggear el commit que está en PROD) |
+| **Release `v6.0.0`** | https://github.com/bistolfibri/ingsoft3-tp01/releases/tag/v6.0.0 |
 
 > Las URLs de QA y PROD son del plan gratuito de Render: si nadie las usó en los últimos ~15 minutos, la primera visita tarda alrededor de un minuto en responder (cold start). Es normal.
 
@@ -199,7 +199,7 @@ Si se publicara igual con tests en rojo, estar en el registry dejaría de signif
 No publico `latest`: cada imagen tiene un solo nombre, el de su commit. Los dos paquetes son **públicos** (Render los baja sin credenciales; hacerlos públicos no tiene vuelta atrás).
 
 ### 3. Continuous Delivery, no Continuous Deployment
-Implementé **Continuous Delivery**: todo cambio que pasa la verificación llega **solo** a QA, pero a PROD sólo llega cuando una persona lo aprueba. Corresponde a mi contexto porque FinFix maneja plata de la gente y mi red de seguridad (25 unit tests, 3 pruebas de integración y 3 e2e) es buena pero chica: sacar al humano automatizaría la propagación de errores. Para llegar a Continuous Deployment me faltaría observabilidad real (métricas, alertas, versión visible en `/health`) y tests que cubran más flujos. ¿La querría? Más adelante, sí, para cambios chicos y con rollback rápido.
+Implementé **Continuous Delivery**: todo cambio que pasa la verificación llega **solo** a QA, pero a PROD sólo llega cuando una persona lo aprueba. Corresponde a mi contexto porque FinFix maneja plata de la gente y mi red de seguridad (25 unit tests, 3 pruebas de integración y 3 e2e) es buena pero chica: sacar al humano automatizaría la propagación de errores. Para llegar a Continuous Deployment me faltaría observabilidad real (métricas, alertas, versión visible en `/health`) y tests que cubran más flujos. 
 
 ### 4. Diseño de la cadena y alcance de cada secret
 ```
@@ -214,7 +214,7 @@ build-frontend ┘
 - `deploy-prod` lleva `concurrency: { group: deploy-prod, cancel-in-progress: false }` para que dos deploys a PROD no se pisen.
 
 ### 5. Qué mira mi aprobador antes de aprobar
-No apruebo por reflejo. Antes de hacer clic miro:
+Antes de hacer clic miro:
 1. Que **todos** los jobs anteriores estén verdes (build, smoke de QA, integración y e2e).
 2. Que el commit de **esta** corrida sea el último de `main` (si entró otro merge después, esta corrida está vieja: **no** la apruebo, la rechazo).
 3. Qué cambia el PR (título y archivos): si toca base de datos, variables o el workflow, miro con más cuidado.
@@ -261,7 +261,7 @@ echo "rollback: $(( $(date +%s) - INICIO )) s"
 - Métrica DORA que ejercita: tiempo de recuperación ante fallos.
 
 ### 12. Release `v6.0.0`
-El tag `v6.0.0` y su release se ponen **sobre el commit que está en PROD** (lo veo en *Deployments → production*), no sobre la punta de `main`, con `gh release create v6.0.0 --generate-notes --verify-tag`. ⏳ PENDIENTE: commit exacto y link (ver «Enlaces de este TP»).
+El tag `v6.0.0` y su release se ponen **sobre el commit que está en PROD** (lo veo en *Deployments → production*), no sobre la punta de `main`, con `gh release create v6.0.0 --generate-notes --verify-tag`.https://github.com/bistolfibri/ingsoft3-tp01/releases/tag/v6.0.0 .
 
 ### 13. Dificultades encontradas y soluciones
 - **Mi primera versión del TP6 desplegaba en `localhost` con Docker Compose** (runner propio) y no en una nube. Esa versión no tenía URLs públicas ni una base por entorno de verdad; la reemplacé por Render + Neon, que es lo que describe este documento.
@@ -286,7 +286,7 @@ Usé asistencia de IA (Claude) para estructurar el workflow, los jobs de deploy 
 | **Paquetes públicos con etiqueta `sha-…`** | [backend](https://github.com/bistolfibri/ingsoft3-tp01/pkgs/container/ingsoft3-tp01-backend) · [frontend](https://github.com/bistolfibri/ingsoft3-tp01/pkgs/container/ingsoft3-tp01-frontend) (ej.: `sha-2d17b10514e326ef0e024328fc6f0feb539fca00`) |
 | **Corrida donde la INTEGRACIÓN quedó VERDE y la e2e ROJA** | Run #90 · commit que rompió la app: 842dfff (cambia el texto del botón en frontend/src/App.jsx, sin tocar e2e/) · artefactos del run: playwright-report-integracion (3 pruebas pasaron) y playwright-report-e2e (2 fallaron y 2 pasaron) |
 | **Corrida completa en VERDE hasta PROD** | [Run #94](https://github.com/bistolfibri/ingsoft3-tp01/actions/runs/38812623770): build → deploy-qa → integración → e2e → aprobación en `production` (con comentario) → deploy-prod verde (commit `ec0fd95`) |
-| **Release `v7.0.0`** | ⏳ PENDIENTE: link |
+| **Release `v7.0.0`** | https://github.com/bistolfibri/ingsoft3-tp01/releases/tag/v7.0.0 |
 | **QA (vivo)** | API: https://finfix-api-qa.onrender.com/health · Front: https://finfix-front-qa.onrender.com |
 | **PROD (vivo)** | API: https://finfix-api-prod.onrender.com/health · Front: https://finfix-front-prod.onrender.com |
 
