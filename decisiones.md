@@ -396,6 +396,16 @@ Usé el riel canónico: **Terraform + Neon + Render**, el mismo proveedor que ve
 
 
 ## TP9 — DevSecOps, Observabilidad y Continuous Feedback
+### Enlaces del TP9
+| Qué | Dónde |
+| --- | --- |
+| Release | [v9.0.0](https://github.com/bistolfibri/ingsoft3-tp01/releases/tag/v9.0.0) |
+| Commit de la release | [`142f915`](https://github.com/bistolfibri/ingsoft3-tp01/commit/142f915) |
+| Dependabot (configuración) | [PR #67](https://github.com/bistolfibri/ingsoft3-tp01/pull/67) |
+| PR de Dependabot mergeado (vitest) | [PR #73](https://github.com/bistolfibri/ingsoft3-tp01/pull/73) |
+| Permisos mínimos en el CI (CodeQL) | [PR #90](https://github.com/bistolfibri/ingsoft3-tp01/pull/90) |
+| Sentry en back y front | [PR #91](https://github.com/bistolfibri/ingsoft3-tp01/pull/91) y corrección del DSN [PR #92](https://github.com/bistolfibri/ingsoft3-tp01/pull/92) |
+| Cierre del TP9 | [PR #94](https://github.com/bistolfibri/ingsoft3-tp01/pull/94) |
 
 ### 1. Dependabot: qué actualizaba el PR que mergeé y por qué me animé
 - **PR #73** `chore(deps-dev): bump vitest from 5.0.2 to 5.0.4 in /backend`. Es un cambio **patch** (solo arreglos), de una dependencia de **desarrollo**: vitest corre los tests y no forma parte de lo que se ejecuta en producción.
