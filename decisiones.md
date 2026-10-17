@@ -387,9 +387,43 @@ Usé el riel canónico: **Terraform + Neon + Render**, el mismo proveedor que ve
 - **VS Code no guardó `main.tf`**: `terraform fmt` reescribió el archivo en disco mientras tenía cambios sin guardar, VS Code mostró un conflicto y el `apply` corrió con la versión vieja. Desde entonces guardo siempre antes de correr Terraform.
 - **PowerShell parte los argumentos con punto**: `terraform apply -replace=terraform_data.esquema` falló con `Invalid force-replace address`; hay que escribirlo entre comillas.
 - **La región**: tomé `ohio`, la misma de mis servicios existentes, para que estén en la misma red privada de Render.
-- - **Instalación en Windows**: `choco` no estaba instalado, así que bajé el zip oficial de HashiCorp y agregué la carpeta al PATH. 
+- **Instalación en Windows**: `choco` no estaba instalado, así que bajé el zip oficial de HashiCorp y agregué la carpeta al PATH. 
 - **Dato medido**: al recrear los servicios de Render con el mismo nombre, volvieron las mismas URLs (la guía no lo tenía medido).
 
 ### 3. Declaración de uso de IA
 - **Uso de IA**: usé Claude como guía paso a paso: me ayudó a entender los conceptos de IaC, a redactar los archivos `.tf`, el script `init-db.cjs` y el `terraform_data`, y a diagnosticar los errores de arriba.
 - **Cómo lo verifiqué**: corrí yo cada comando en mi máquina y leí cada `plan` antes de aplicar. Comprobé las tres cosas con mis ojos: los recursos en las consolas de Neon y Render, el dashboard respondiendo con datos, y los ciclos `destroy` y `apply`. Puedo explicar qué hace cada recurso y leer un plan en voz alta.
+
+
+## TP9 — DevSecOps, Observabilidad y Continuous Feedback
+
+### 1. Dependabot: qué actualizaba el PR que mergeé y por qué me animé
+- **PR #73** `chore(deps-dev): bump vitest from 5.0.2 to 5.0.4 in /backend`. Es un cambio **patch** (solo arreglos), de una dependencia de **desarrollo**: vitest corre los tests y no forma parte de lo que se ejecuta en producción.
+- **Por qué me animé**: el CI estaba en verde (`build-backend` y `build-frontend`, los dos checks requeridos) y ese verde es mis tests unitarios, el umbral de cobertura y el quality gate del TP5 diciendo que no se rompió nada. Después del merge, la integración y el e2e corrieron contra QA.
+- **La red también frena**: otros PRs de Dependabot fallaron en el CI (por ejemplo `@vitest/coverage-v8` 1.6.1 a 5.0.4 en el frontend, `@vitejs/plugin-react` 4.7.0 a 6.1.2, `react` y `@types/react`) y **no los mergeé**: son saltos de versión mayor incompatibles con el resto.
+- Config: `.github/dependabot.yml` con `npm` (`/backend` y `/frontend`) y `github-actions`, más las alertas y las actualizaciones de seguridad prendidas.
+
+### 2. CodeQL y protección de secretos
+- CodeQL en configuración por defecto encontró 9 hallazgos de dos tipos. Los 4 de **"Workflow does not contain permissions"** (jobs de deploy y pruebas del `ci.yml` sin `permissions`) los corregí con `contents: read` en cada job (PR #90) y las alertas se cerraron. Los 5 de **"Missing rate limiting"** (mis rutas de la API no limitan pedidos por cliente; es explotable porque la API es pública y no tiene login) quedan como mejora planificada con `express-rate-limit`.
+- **Push protection** y secret scanning: verificados activos en Settings → Advanced Security. No detectan secretos sin formato conocido (una contraseña inventada, por ejemplo).
+
+### 3. Monitor externo y caída provocada
+- UptimeRobot sobre `/health` de PROD, cada 5 minutos, alerta por email. Comprobé antes con `curl.exe -I` que el endpoint responde a HEAD.
+- Suspendí el servicio de API de PROD a las 19:07. El monitor registró la caída a las **19:08:56** (**~2 minutos** de detección; el peor caso es 5 minutos, el intervalo). Reanudé a las 19:10 y el aviso de UP llegó a las **19:14:01**: la caída vista por el monitor duró ~5 minutos. El monitor quedó **pausado** al terminar, porque despierto todo el mes consume las 750 horas gratuitas que comparten mis servicios de Render.
+
+### 4. Sentry: qué falla, qué tarda y qué se usa
+- **Back**: `@sentry/node`, cargado con `node --import ./src/instrument.js` (el servidor usa módulos ES; Sentry tiene que cargarse antes que Express y `pg` para poder medir). Su DSN va en la variable `SENTRY_DSN` de Render, no en el código. **Front**: `@sentry/react`; su DSN va en el código porque solo sirve para enviar datos, no para leerlos.
+- **Operación más usada**: `GET /api/dashboard` (~22 pedidos en 24 h). **Más lenta**: `POST /api/expenses`, con P95 de **561 ms** en el backend (650 ms medido desde el navegador). Son pocas muestras, así que el P95 es casi el pedido más lento.
+- **Tarjeta en el tablero del TP3**: «Investigar la lentitud de POST /api/expenses (P95 561 ms)».
+- **Límite conocido**: mis controllers atrapan los errores con `try/catch` y responden 500, así que Sentry solo ve automáticamente los errores que no atrapo. Mejora pendiente: `Sentry.captureException(err)` en esos `catch`.
+- Para ver un error agregué un endpoint temporal que fallaba a propósito y lo saqué al terminar.
+
+### 5. Dificultades encontradas y soluciones
+- **`dependabot.yml` en la carpeta equivocada** (`.github/workflows/` en lugar de `.github/`): `git add` decía "pathspec did not match"; lo moví a `.github/`.
+- **Cuenta de Sentry**: el login con GitHub no encontró cuenta con mi email verificado, así que creé una nueva.
+- **DSN del front con los signos `<` `>`** copiados de la plantilla: la consola decía "Invalid Sentry Dsn" y no llegaban datos del front. Lo detecté con las herramientas de desarrollo del navegador y lo corregí por un nuevo PR.
+- **`/api/falla` daba 404** justo después del merge: el deploy a PROD todavía no había terminado.
+- **F12 abría la calculadora** en mi notebook: usé Ctrl+Shift+I.
+
+### 6. Declaración de uso de IA
+Usé asistencia de IA (Claude) para entender los conceptos, para el paso a paso y para los fragmentos de configuración (`dependabot.yml`, `instrument.js`, inicialización de Sentry, `permissions` del workflow) y la redacción de esta sección. **Verificación**: hice yo cada cambio y lo vi funcionando: las protecciones en la pestaña Security, el DOWN y el UP en el historial de UptimeRobot, y el error, los tiempos y el uso en Sentry. Provoqué yo la caída y el error, y puedo explicar qué mira cada pieza y qué no.
