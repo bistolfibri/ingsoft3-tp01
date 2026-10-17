@@ -9,7 +9,7 @@ import * as Sentry from '@sentry/react';
 //tracesSampleRate: 1.0: mide todos los pedidos, no una muestra.
 
 Sentry.init({
-  dsn: '<https://bef840d4724fbc035f8c4aed2ffc6c02@o4512273910661120.ingest.us.sentry.io/4512273931370496>',
+  dsn: 'https://bef840d4724fbc035f8c4aed2ffc6c02@o4512273910661120.ingest.us.sentry.io/4512273931370496',
   environment: window.location.hostname, // de qué sitio viene: producción, QA o localhost
   integrations: [Sentry.browserTracingIntegration()],
   tracesSampleRate: 1.0, // medir todos los pedidos
