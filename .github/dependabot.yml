@@ -1,0 +1,19 @@
+#package-ecosystem: qué gestor de paquetes usa esa carpeta (npm mira el package.json y el package-lock.json)
+#directory: dónde está ese package.json
+#interval: weekly: revisa una vez por semana.
+version: 2
+updates:
+  - package-ecosystem: "npm" 
+    directory: "/backend"
+    schedule:
+      interval: "weekly"
+
+  - package-ecosystem: "npm"
+    directory: "/frontend"
+    schedule:
+      interval: "weekly"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
