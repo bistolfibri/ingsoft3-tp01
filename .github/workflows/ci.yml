@@ -156,6 +156,8 @@ jobs:
   # Las URLs de cada entorno son variables del repositorio (Settings > Variables).
   deploy-qa:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     needs: [build-backend, build-frontend]   # sin CI verde no hay imagen, y sin imagen no hay deploy
     if: github.ref == 'refs/heads/main'      # los PRs verifican; solo main despliega
     environment: qa
@@ -196,6 +198,8 @@ jobs:
   # =========================================================================
   integracion:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     needs: deploy-qa
     timeout-minutes: 15
     steps:
@@ -246,6 +250,8 @@ jobs:
   # =========================================================================
   e2e:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     needs: integracion          # si la API está rota, no gastamos un navegador en confirmarlo
     timeout-minutes: 20
     steps:
@@ -298,6 +304,8 @@ jobs:
   # =========================================================================
   deploy-prod:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     needs: e2e                       # EL gate: sin e2e verde ni siquiera se pide aprobación
     environment: production          # ⏸ PAUSADO ESPERANDO APROBACIÓN MANUAL
     concurrency:
