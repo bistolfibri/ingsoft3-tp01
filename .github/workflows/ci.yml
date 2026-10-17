@@ -34,7 +34,7 @@ jobs:
 
       - name: Subir Reporte de Cobertura del Backend
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-backend
           path: ./backend/coverage
@@ -105,7 +105,7 @@ jobs:
 
       - name: Subir Reporte de Cobertura del Frontend
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-frontend
           path: ./frontend/coverage
@@ -240,7 +240,7 @@ jobs:
 
       - name: Subir Reporte de Integración como Artefacto
         if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: playwright-report-integracion
           path: frontend/playwright-report
@@ -294,7 +294,7 @@ jobs:
 
       - name: Subir Reporte E2E como Artefacto
         if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: playwright-report-e2e
           path: frontend/playwright-report
