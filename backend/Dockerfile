@@ -16,4 +16,4 @@ COPY --from=build /app ./
 EXPOSE 3001
 ENV PORT=3001
 
-CMD ["node", "src/server.js"]
+CMD ["node", "--import", "./src/instrument.js", "src/server.js"]
