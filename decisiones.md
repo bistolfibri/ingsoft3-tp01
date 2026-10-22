@@ -2,6 +2,18 @@
 
 Este documento registra de forma incremental todas las decisiones técnicas, de arquitectura, planificación e infraestructura tomadas durante la cursada de **Ingeniería del Software III (UCC 2026)** para la aplicación **FinFix**.
 
+## 🔗 Enlaces del TP6 y del TP7
+
+| Qué | Dónde |
+| :--- | :--- |
+| **QA** | https://finfix-front-qa.onrender.com · api: https://finfix-api-qa.onrender.com/health |
+| **PROD** | https://finfix-front-prod.onrender.com · api: https://finfix-api-prod.onrender.com/health |
+| **Paquetes públicos (`sha-<commit>`)** | [backend](https://github.com/bistolfibri/ingsoft3-tp01/pkgs/container/ingsoft3-tp01-backend) · [frontend](https://github.com/bistolfibri/ingsoft3-tp01/pkgs/container/ingsoft3-tp01-frontend) |
+| **TP6 · cadena (PR sin publicar / main publica último)** | [job del PR](https://github.com/bistolfibri/ingsoft3-tp01/actions/runs/38778692235/job/116572917241) · [job de main](https://github.com/bistolfibri/ingsoft3-tp01/actions/runs/38779126083/job/116574433745) |
+| **TP6 · flujo aprobado / deploy rechazado con motivo** | [run #94](https://github.com/bistolfibri/ingsoft3-tp01/actions/runs/38812623770) · [run #96](https://github.com/bistolfibri/ingsoft3-tp01/actions/runs/38818190986) |
+| **TP7 · integración VERDE + e2e ROJA** | [run #90](https://github.com/bistolfibri/ingsoft3-tp01/actions/runs/38807486699) |
+| **TP7 · corrida completa verde hasta PROD** | [run #94](https://github.com/bistolfibri/ingsoft3-tp01/actions/runs/38812623770) |
+
 ---
 
 ## TP1 — Control de Versiones y Git Colaborativo
@@ -149,19 +161,35 @@ Para cumplir con el requisito obligatorio de Mocks sin tocar dependencias reales
 - **Por qué el front no usa inyección**: acá reemplazo fetch global con vi.stubGlobal en vez de pasarlo por parámetro como en el backend. Cumple “no salir a la red”, pero acopla el test a un global. Lo asumo porque api.js es un módulo chico de llamadas directas.
 
 ### 6. Enlaces Comprobables de Evidencia en GitHub
-- **Resumen de Cobertura y Artefactos Descargables**: [Workflow Run #36328041640](https://github.com/bistolfibri/ingsoft3-tp01/actions/runs/36328041640)
+- **Resumen de Cobertura y Artefactos Descargables**: [Workflow Run #36328041640](https://github.com/bistolfibri/ingsoft3-tp01/actions/runs/36328041640) · con la suite actual y todo en verde: [run #94](https://github.com/bistolfibri/ingsoft3-tp01/actions/runs/38812623770) (tablas de cobertura de back y front en el *Summary*, artefactos `coverage-backend` y `coverage-frontend`)
 - **Corrida ROJA Bloqueada por Umbral**: [Job Build-Backend FAILED por cobertura bajo el umbral](https://github.com/bistolfibri/ingsoft3-tp01/actions/runs/36328041640/job/108644501261?pr=29)
 - **Pull Request N° 1 Mergeado (Secuencia Rojo → Fix → Verde → Merge)**: [PR #29](https://github.com/bistolfibri/ingsoft3-tp01/pull/29)
 - **Pull Request N° 2 Abierto en ROJO (Prueba Viva de Bloqueo Vigente)**: [PR #30](https://github.com/bistolfibri/ingsoft3-tp01/pull/30)
 
-### 7. Dificultades Encontradas y Soluciones
+### 7. Mis Pull Requests bloqueados: qué check, qué métrica y qué escribí
+- **PR #29 (el que cuenta la historia)**: agregué `calcularDescuentoAntiguedad` sin tests y el check `build-backend` se puso **rojo por cobertura**, con los 12 tests del backend en verde ([corrida](https://github.com/bistolfibri/ingsoft3-tp01/actions/runs/36328041640/job/108644501261)). El umbral de ese momento era **65 % de líneas y 50 % de ramas**, y la medición dio **64,64 % de líneas y 46,72 % de ramas**: frenó por las **dos** métricas (vitest imprime `ERROR: Coverage for lines … does not meet global threshold`). Para arreglarlo escribí el test que faltaba (el de `calcularDescuentoAntiguedad`, parametrizado), el check pasó a verde y lo mergeé.
+- **PR #30 (el que lo prueba, abierto hasta la defensa)**: agrega dos funciones al backend sin tests. Compila y sus 16 tests pasan, pero la cobertura cae a **62,5 % de líneas y 47,82 % de ramas**, debajo del 65/50 de ese momento: `build-backend` en rojo y el merge bloqueado.
+- **Después** subí el umbral a 80 % de líneas y 58 % de ramas (PR #54), cuando agregué el test de la rama sin cubrir (sección 4).
+- **Por qué es distinto del freno del TP4**: allá frenaba que el código no compilara; acá todo compila y todos los tests pasan, y frena un número de calidad que elegí yo. **Qué deja pasar igual**: un test que ejecuta código sin verificar nada (sección 8) o una regla mal entendida desde el requisito.
+
+### 8. Por qué coverage alto no garantiza calidad (mi ejemplo)
+En `determineExpenseStatusAndPriority`, el tramo que decide el estado según los días que faltan está **cubierto al 100 %, en líneas y en ramas**, y aun así probé cambiar su borde `diffDays <= 3` por `diffDays <= 2` (un «mutante»): **los 18 tests siguieron en verde**. Ningún test usa un vencimiento exactamente a 3 días, así que el día en que una obligación pasa a «Próximo a vencer» podría correrse sin que nadie se entere. La cobertura dice qué líneas se **ejecutaron**, no qué comportamiento se **verificó**. Para matar ese mutante haría falta un test de borde con 3 días (y otro con 4).
+
+### 9. Mi stack no es el de la cátedra (Node + vitest): qué usé en cada fila
+- **Dónde viven los tests**: al lado del código (`expenseRules.test.js`, `api.test.js`).
+- **Parametrizado**: `it.each`. **Doble**: `vi.fn()` (repositorio inyectado en el back, `fetch` con `vi.stubGlobal` en el front).
+- **Medir cobertura**: `vitest run --coverage` con `@vitest/coverage-v8`.
+- **Umbral que rompe el build**: `coverage.thresholds` (líneas y ramas) en `backend/vitest.config.js` y `frontend/vite.config.js`: si no se cumple, `npm run test:coverage` sale con error y el job falla.
+- **Qué entra en la cuenta**: `include: ['src/services/**/*.js']` en los dos lados.
+
+### 10. Dificultades Encontradas y Soluciones
 - **Conflicto de Peer Dependencies entre Vite 5 y Vitest 5**: En el frontend, `npm install` arrojó error `ERESOLVE` por la versión de Vite. Se resolvió fijando `vitest@^1.6.0` con la bandera `--legacy-peer-deps`.
 - **Distorsión del Coverage por Pantalla de UI**: Al medir todo el frontend, `App.jsx` (1.200 líneas) bajaba el porcentaje a 2.65%. Se resolvió configurando `include: ['src/services/**/*.js']` en `vite.config.js` para enfocar la medición en los servicios de API.
-- **Falso Positivo en PR #30**: La primera función de prueba corta no alcanzó a bajar la cobertura general por debajo del 70%. Se resolvió agregando la función `evaluarRiesgoCrediticioYPromociones` de 30 líneas con múltiples `if`, provocando la caída efectiva al 60.8% y activando el freno del gate.
+- **Falso Positivo en PR #30**: La primera función de prueba corta no alcanzó a bajar la cobertura general por debajo del umbral de ese momento (65 % de líneas). Se resolvió agregando la función `evaluarRiesgoCrediticioYPromociones` de 30 líneas con múltiples `if`, que bajó el backend a 62,5 % de líneas y 47,82 % de ramas y activó el freno del gate.
 
-### 8. Declaración de Uso de Inteligencia Artificial
+### 11. Declaración de Uso de Inteligencia Artificial
 - **Uso de IA**: Se utilizó asistencia de IA como guía técnica para configurar los reportes de cobertura en Vitest v8 (`@vitest/coverage-v8`), redactar los stubs de `vi.stubGlobal` para `fetch` en frontend y estructurar las justificaciones de umbrales.
-- **Verificación realizada**: Los 25 unit tests (18 backend y 7 frontend), las mediciones de cobertura, las corridas en rojo por umbral y las fusiones de los PRs #29 y #30 fueron ejecutados, probados y verificados manualmente en la terminal local y en la interfaz web de GitHub.
+- **Verificación realizada**: Los 25 unit tests (18 backend y 7 frontend), las mediciones de cobertura, la corrida en rojo por umbral y el merge del PR #29 fueron ejecutados, probados y verificados manualmente en la terminal local y en la interfaz web de GitHub. El PR #30 queda abierto y en rojo a propósito.
 
 ---
 
@@ -264,7 +292,7 @@ echo "rollback: $(( $(date +%s) - INICIO )) s"
 - Métrica DORA que ejercita: tiempo de recuperación ante fallos.
 
 ### 12. Release `v6.0.0`
-El tag `v6.0.0` y su release se ponen **sobre el commit que está en PROD** (lo veo en *Deployments → production*), no sobre la punta de `main`, con `gh release create v6.0.0 --generate-notes --verify-tag`.https://github.com/bistolfibri/ingsoft3-tp01/releases/tag/v6.0.0 .
+El tag `v6.0.0` y su release se ponen **sobre el commit que está en PROD** (lo veo en *Deployments → production*), no sobre la punta de `main`, con `gh release create v6.0.0 --generate-notes --verify-tag`: [release v6.0.0](https://github.com/bistolfibri/ingsoft3-tp01/releases/tag/v6.0.0).
 
 ### 13. Dificultades encontradas y soluciones
 - **Mi primera versión del TP6 desplegaba en `localhost` con Docker Compose** (runner propio) y no en una nube. Esa versión no tenía URLs públicas ni una base por entorno de verdad; la reemplacé por Render + Neon, que es lo que describe este documento.
@@ -287,7 +315,7 @@ Usé asistencia de IA (Claude) para estructurar el workflow, los jobs de deploy 
 | Recurso | Enlace |
 | :--- | :--- |
 | **Paquetes públicos con etiqueta `sha-…`** | [backend](https://github.com/bistolfibri/ingsoft3-tp01/pkgs/container/ingsoft3-tp01-backend) · [frontend](https://github.com/bistolfibri/ingsoft3-tp01/pkgs/container/ingsoft3-tp01-frontend) (ej.: `sha-2d17b10514e326ef0e024328fc6f0feb539fca00`) |
-| **Corrida donde la INTEGRACIÓN quedó VERDE y la e2e ROJA** | Run #90 · commit que rompió la app: 842dfff (cambia el texto del botón en frontend/src/App.jsx, sin tocar e2e/) · artefactos del run: playwright-report-integracion (3 pruebas pasaron) y playwright-report-e2e (2 fallaron y 2 pasaron) |
+| **Corrida donde la INTEGRACIÓN quedó VERDE y la e2e ROJA** | [Run #90](https://github.com/bistolfibri/ingsoft3-tp01/actions/runs/38807486699) ([job integración, verde](https://github.com/bistolfibri/ingsoft3-tp01/actions/runs/38807486699/job/116672773957) · [job e2e, rojo](https://github.com/bistolfibri/ingsoft3-tp01/actions/runs/38807486699/job/116672924173) · `deploy-prod` salteado) · commit que rompió la app: [`842dfff`](https://github.com/bistolfibri/ingsoft3-tp01/commit/842dfffb806ac0abedfdf56303616775d3c645c3) (cambia el texto del botón en frontend/src/App.jsx, sin tocar e2e/) · artefactos del run: [playwright-report-integracion](https://github.com/bistolfibri/ingsoft3-tp01/actions/runs/38807486699/artifacts/12006419445) (3 pruebas pasaron) y [playwright-report-e2e](https://github.com/bistolfibri/ingsoft3-tp01/actions/runs/38807486699/artifacts/12007342074) (2 fallaron y 2 pasaron) |
 | **Corrida completa en VERDE hasta PROD** | [Run #94](https://github.com/bistolfibri/ingsoft3-tp01/actions/runs/38812623770): build → deploy-qa → integración → e2e → aprobación en `production` (con comentario) → deploy-prod verde (commit `ec0fd95`) |
 | **Release `v7.0.0`** | https://github.com/bistolfibri/ingsoft3-tp01/releases/tag/v7.0.0 |
 | **QA (vivo)** | API: https://finfix-api-qa.onrender.com/health · Front: https://finfix-front-qa.onrender.com |
@@ -424,7 +452,7 @@ Usé el riel canónico: **Terraform + Neon + Render**, el mismo proveedor que ve
 ### 4. Sentry: qué falla, qué tarda y qué se usa
 - **Back**: `@sentry/node`, cargado con `node --import ./src/instrument.js` (el servidor usa módulos ES; Sentry tiene que cargarse antes que Express y `pg` para poder medir). Su DSN va en la variable `SENTRY_DSN` de Render, no en el código. **Front**: `@sentry/react`; su DSN va en el código porque solo sirve para enviar datos, no para leerlos.
 - **Operación más usada**: `GET /api/dashboard` (~22 pedidos en 24 h). **Más lenta**: `POST /api/expenses`, con P95 de **561 ms** en el backend (650 ms medido desde el navegador). Son pocas muestras, así que el P95 es casi el pedido más lento.
-- **Tarjeta en el tablero del TP3**: «Investigar la lentitud de POST /api/expenses (P95 561 ms)».
+- **Tarjeta en el tablero del TP3**: «Investigar la lentitud de POST /api/expenses (P95 561 ms)» ([issue #93](https://github.com/bistolfibri/ingsoft3-tp01/issues/93)).
 - **Límite conocido**: mis controllers atrapan los errores con `try/catch` y responden 500, así que Sentry solo ve automáticamente los errores que no atrapo. Mejora pendiente: `Sentry.captureException(err)` en esos `catch`.
 - Para ver un error agregué un endpoint temporal que fallaba a propósito y lo saqué al terminar.
 
