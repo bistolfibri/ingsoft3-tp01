@@ -2,24 +2,17 @@
 
 Este documento registra de forma incremental todas las decisiones técnicas, de arquitectura, planificación e infraestructura tomadas durante la cursada de **Ingeniería del Software III (UCC 2026)** para la aplicación **FinFix**.
 
-## 🔗 Enlaces para la corrección (P2 · TP5 a TP9)
+## 🔗 Enlaces del TP6 y del TP7
 
 | Qué | Dónde |
 | :--- | :--- |
-| **QA (front)** | https://finfix-front-qa.onrender.com · api: https://finfix-api-qa.onrender.com/health |
-| **PROD (front)** | https://finfix-front-prod.onrender.com · api: https://finfix-api-prod.onrender.com/health |
+| **QA** | https://finfix-front-qa.onrender.com · api: https://finfix-api-qa.onrender.com/health |
+| **PROD** | https://finfix-front-prod.onrender.com · api: https://finfix-api-prod.onrender.com/health |
 | **Paquetes públicos (`sha-<commit>`)** | [backend](https://github.com/bistolfibri/ingsoft3-tp01/pkgs/container/ingsoft3-tp01-backend) · [frontend](https://github.com/bistolfibri/ingsoft3-tp01/pkgs/container/ingsoft3-tp01-frontend) |
-| **Releases** | [v5.0.0](https://github.com/bistolfibri/ingsoft3-tp01/releases/tag/v5.0.0) · [v6.0.0](https://github.com/bistolfibri/ingsoft3-tp01/releases/tag/v6.0.0) · [v7.0.0](https://github.com/bistolfibri/ingsoft3-tp01/releases/tag/v7.0.0) · [v8.0.0](https://github.com/bistolfibri/ingsoft3-tp01/releases/tag/v8.0.0) · [v9.0.0](https://github.com/bistolfibri/ingsoft3-tp01/releases/tag/v9.0.0) |
-| **TP5 · PR mergeado (rojo → tests → verde → merge)** | [PR #29](https://github.com/bistolfibri/ingsoft3-tp01/pull/29) · corrida roja por umbral: [run 36328041640](https://github.com/bistolfibri/ingsoft3-tp01/actions/runs/36328041640/job/108644501261) |
-| **TP5 · PR abierto y en rojo (freno vigente)** | [PR #30](https://github.com/bistolfibri/ingsoft3-tp01/pull/30) |
 | **TP6 · cadena (PR sin publicar / main publica último)** | [job del PR](https://github.com/bistolfibri/ingsoft3-tp01/actions/runs/38778692235/job/116572917241) · [job de main](https://github.com/bistolfibri/ingsoft3-tp01/actions/runs/38779126083/job/116574433745) |
 | **TP6 · flujo aprobado / deploy rechazado con motivo** | [run #94](https://github.com/bistolfibri/ingsoft3-tp01/actions/runs/38812623770) · [run #96](https://github.com/bistolfibri/ingsoft3-tp01/actions/runs/38818190986) |
-| **TP7 · integración VERDE + e2e ROJA (freno)** | [run #90](https://github.com/bistolfibri/ingsoft3-tp01/actions/runs/38807486699) · commit que rompió el front: [`842dfff`](https://github.com/bistolfibri/ingsoft3-tp01/commit/842dfffb806ac0abedfdf56303616775d3c645c3) |
+| **TP7 · integración VERDE + e2e ROJA** | [run #90](https://github.com/bistolfibri/ingsoft3-tp01/actions/runs/38807486699) |
 | **TP7 · corrida completa verde hasta PROD** | [run #94](https://github.com/bistolfibri/ingsoft3-tp01/actions/runs/38812623770) |
-| **TP8 · `infra/`** | [carpeta en main](https://github.com/bistolfibri/ingsoft3-tp01/tree/main/infra) · [PR #65](https://github.com/bistolfibri/ingsoft3-tp01/pull/65) |
-| **TP9 · Dependabot mergeado / Sentry / tarjeta** | [PR #73](https://github.com/bistolfibri/ingsoft3-tp01/pull/73) · [PR #91](https://github.com/bistolfibri/ingsoft3-tp01/pull/91) · [issue #93](https://github.com/bistolfibri/ingsoft3-tp01/issues/93) |
-
-> No usé el fallback local: QA y PROD corren en Render + Neon. Las URLs son del plan gratuito: la primera visita después de ~15 minutos sin uso tarda alrededor de un minuto (cold start).
 
 ---
 
