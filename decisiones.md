@@ -166,30 +166,30 @@ Para cumplir con el requisito obligatorio de Mocks sin tocar dependencias reales
 - **Pull Request N° 1 Mergeado (Secuencia Rojo → Fix → Verde → Merge)**: [PR #29](https://github.com/bistolfibri/ingsoft3-tp01/pull/29)
 - **Pull Request N° 2 Abierto en ROJO (Prueba Viva de Bloqueo Vigente)**: [PR #30](https://github.com/bistolfibri/ingsoft3-tp01/pull/30)
 
-### 7. Dificultades Encontradas y Soluciones
-- **Conflicto de Peer Dependencies entre Vite 5 y Vitest 5**: En el frontend, `npm install` arrojó error `ERESOLVE` por la versión de Vite. Se resolvió fijando `vitest@^1.6.0` con la bandera `--legacy-peer-deps`.
-- **Distorsión del Coverage por Pantalla de UI**: Al medir todo el frontend, `App.jsx` (1.200 líneas) bajaba el porcentaje a 2.65%. Se resolvió configurando `include: ['src/services/**/*.js']` en `vite.config.js` para enfocar la medición en los servicios de API.
-- **Falso Positivo en PR #30**: La primera función de prueba corta no alcanzó a bajar la cobertura general por debajo del umbral de ese momento (65 % de líneas). Se resolvió agregando la función `evaluarRiesgoCrediticioYPromociones` de 30 líneas con múltiples `if`, que bajó el backend a 62,5 % de líneas y 47,82 % de ramas y activó el freno del gate.
-
-### 8. Declaración de Uso de Inteligencia Artificial
-- **Uso de IA**: Se utilizó asistencia de IA como guía técnica para configurar los reportes de cobertura en Vitest v8 (`@vitest/coverage-v8`), redactar los stubs de `vi.stubGlobal` para `fetch` en frontend y estructurar las justificaciones de umbrales.
-- **Verificación realizada**: Los 25 unit tests (18 backend y 7 frontend), las mediciones de cobertura, la corrida en rojo por umbral y el merge del PR #29 fueron ejecutados, probados y verificados manualmente en la terminal local y en la interfaz web de GitHub. El PR #30 queda abierto y en rojo a propósito.
-
-### 9. Mis Pull Requests bloqueados: qué check, qué métrica y qué escribí
+### 7. Mis Pull Requests bloqueados: qué check, qué métrica y qué escribí
 - **PR #29 (el que cuenta la historia)**: agregué `calcularDescuentoAntiguedad` sin tests y el check `build-backend` se puso **rojo por cobertura**, con los 12 tests del backend en verde ([corrida](https://github.com/bistolfibri/ingsoft3-tp01/actions/runs/36328041640/job/108644501261)). El umbral de ese momento era **65 % de líneas y 50 % de ramas**, y la medición dio **64,64 % de líneas y 46,72 % de ramas**: frenó por las **dos** métricas (vitest imprime `ERROR: Coverage for lines … does not meet global threshold`). Para arreglarlo escribí el test que faltaba (el de `calcularDescuentoAntiguedad`, parametrizado), el check pasó a verde y lo mergeé.
 - **PR #30 (el que lo prueba, abierto hasta la defensa)**: agrega dos funciones al backend sin tests. Compila y sus 16 tests pasan, pero la cobertura cae a **62,5 % de líneas y 47,82 % de ramas**, debajo del 65/50 de ese momento: `build-backend` en rojo y el merge bloqueado.
 - **Después** subí el umbral a 80 % de líneas y 58 % de ramas (PR #54), cuando agregué el test de la rama sin cubrir (sección 4).
-- **Por qué es distinto del freno del TP4**: allá frenaba que el código no compilara; acá todo compila y todos los tests pasan, y frena un número de calidad que elegí yo. **Qué deja pasar igual**: un test que ejecuta código sin verificar nada (sección 10) o una regla mal entendida desde el requisito.
+- **Por qué es distinto del freno del TP4**: allá frenaba que el código no compilara; acá todo compila y todos los tests pasan, y frena un número de calidad que elegí yo. **Qué deja pasar igual**: un test que ejecuta código sin verificar nada (sección 8) o una regla mal entendida desde el requisito.
 
-### 10. Por qué coverage alto no garantiza calidad (mi ejemplo)
+### 8. Por qué coverage alto no garantiza calidad (mi ejemplo)
 En `determineExpenseStatusAndPriority`, el tramo que decide el estado según los días que faltan está **cubierto al 100 %, en líneas y en ramas**, y aun así probé cambiar su borde `diffDays <= 3` por `diffDays <= 2` (un «mutante»): **los 18 tests siguieron en verde**. Ningún test usa un vencimiento exactamente a 3 días, así que el día en que una obligación pasa a «Próximo a vencer» podría correrse sin que nadie se entere. La cobertura dice qué líneas se **ejecutaron**, no qué comportamiento se **verificó**. Para matar ese mutante haría falta un test de borde con 3 días (y otro con 4).
 
-### 11. Mi stack no es el de la cátedra (Node + vitest): qué usé en cada fila
+### 9. Mi stack no es el de la cátedra (Node + vitest): qué usé en cada fila
 - **Dónde viven los tests**: al lado del código (`expenseRules.test.js`, `api.test.js`).
 - **Parametrizado**: `it.each`. **Doble**: `vi.fn()` (repositorio inyectado en el back, `fetch` con `vi.stubGlobal` en el front).
 - **Medir cobertura**: `vitest run --coverage` con `@vitest/coverage-v8`.
 - **Umbral que rompe el build**: `coverage.thresholds` (líneas y ramas) en `backend/vitest.config.js` y `frontend/vite.config.js`: si no se cumple, `npm run test:coverage` sale con error y el job falla.
 - **Qué entra en la cuenta**: `include: ['src/services/**/*.js']` en los dos lados.
+
+### 10. Dificultades Encontradas y Soluciones
+- **Conflicto de Peer Dependencies entre Vite 5 y Vitest 5**: En el frontend, `npm install` arrojó error `ERESOLVE` por la versión de Vite. Se resolvió fijando `vitest@^1.6.0` con la bandera `--legacy-peer-deps`.
+- **Distorsión del Coverage por Pantalla de UI**: Al medir todo el frontend, `App.jsx` (1.200 líneas) bajaba el porcentaje a 2.65%. Se resolvió configurando `include: ['src/services/**/*.js']` en `vite.config.js` para enfocar la medición en los servicios de API.
+- **Falso Positivo en PR #30**: La primera función de prueba corta no alcanzó a bajar la cobertura general por debajo del umbral de ese momento (65 % de líneas). Se resolvió agregando la función `evaluarRiesgoCrediticioYPromociones` de 30 líneas con múltiples `if`, que bajó el backend a 62,5 % de líneas y 47,82 % de ramas y activó el freno del gate.
+
+### 11. Declaración de Uso de Inteligencia Artificial
+- **Uso de IA**: Se utilizó asistencia de IA como guía técnica para configurar los reportes de cobertura en Vitest v8 (`@vitest/coverage-v8`), redactar los stubs de `vi.stubGlobal` para `fetch` en frontend y estructurar las justificaciones de umbrales.
+- **Verificación realizada**: Los 25 unit tests (18 backend y 7 frontend), las mediciones de cobertura, la corrida en rojo por umbral y el merge del PR #29 fueron ejecutados, probados y verificados manualmente en la terminal local y en la interfaz web de GitHub. El PR #30 queda abierto y en rojo a propósito.
 
 ---
 
@@ -292,7 +292,7 @@ echo "rollback: $(( $(date +%s) - INICIO )) s"
 - Métrica DORA que ejercita: tiempo de recuperación ante fallos.
 
 ### 12. Release `v6.0.0`
-El tag `v6.0.0` y su release se ponen **sobre el commit que está en PROD** (lo veo en *Deployments → production*), no sobre la punta de `main`, con `gh release create v6.0.0 --generate-notes --verify-tag`.https://github.com/bistolfibri/ingsoft3-tp01/releases/tag/v6.0.0 .
+El tag `v6.0.0` y su release se ponen **sobre el commit que está en PROD** (lo veo en *Deployments → production*), no sobre la punta de `main`, con `gh release create v6.0.0 --generate-notes --verify-tag`: [release v6.0.0](https://github.com/bistolfibri/ingsoft3-tp01/releases/tag/v6.0.0).
 
 ### 13. Dificultades encontradas y soluciones
 - **Mi primera versión del TP6 desplegaba en `localhost` con Docker Compose** (runner propio) y no en una nube. Esa versión no tenía URLs públicas ni una base por entorno de verdad; la reemplacé por Render + Neon, que es lo que describe este documento.
