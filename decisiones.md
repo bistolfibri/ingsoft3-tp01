@@ -453,8 +453,7 @@ Usé el riel canónico: **Terraform + Neon + Render**, el mismo proveedor que ve
 - **Back**: `@sentry/node`, cargado con `node --import ./src/instrument.js` (el servidor usa módulos ES; Sentry tiene que cargarse antes que Express y `pg` para poder medir). Su DSN va en la variable `SENTRY_DSN` de Render, no en el código. **Front**: `@sentry/react`; su DSN va en el código porque solo sirve para enviar datos, no para leerlos.
 - **Operación más usada**: `GET /api/dashboard` (~22 pedidos en 24 h). **Más lenta**: `POST /api/expenses`, con P95 de **561 ms** en el backend (650 ms medido desde el navegador). Son pocas muestras, así que el P95 es casi el pedido más lento.
 - **Tarjeta en el tablero del TP3**: «Investigar la lentitud de POST /api/expenses (P95 561 ms)» ([issue #93](https://github.com/bistolfibri/ingsoft3-tp01/issues/93)).
-- **Límite conocido**: mis controllers atrapan los errores con `try/catch` y responden 500, así que Sentry solo ve automáticamente los errores que no atrapo. Mejora pendiente: `Sentry.captureException(err)` en esos `catch`.
-- Para ver un error agregué un endpoint temporal que fallaba a propósito y lo saqué al terminar.
+- **Límite conocido (resuelto)**: mis controllers atrapan los errores con try/catch y responden 500, así que Sentry no los veía. Agregué Sentry.captureException(error) en cada catch para que también los reporte. En QA no manda nada, porque SENTRY_DSN solo está en PROD.
 
 ### 5. Dificultades encontradas y soluciones
 - **`dependabot.yml` en la carpeta equivocada** (`.github/workflows/` en lugar de `.github/`): `git add` decía "pathspec did not match"; lo moví a `.github/`.
