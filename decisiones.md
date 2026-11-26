@@ -448,12 +448,14 @@ Usé el riel canónico: **Terraform + Neon + Render**, el mismo proveedor que ve
 ### 3. Monitor externo y caída provocada
 - UptimeRobot sobre `/health` de PROD, cada 5 minutos, alerta por email. Comprobé antes con `curl.exe -I` que el endpoint responde a HEAD.
 - Suspendí el servicio de API de PROD a las 19:07. El monitor registró la caída a las **19:08:56** (**~2 minutos** de detección; el peor caso es 5 minutos, el intervalo). Reanudé a las 19:10 y el aviso de UP llegó a las **19:14:01**: la caída vista por el monitor duró ~5 minutos. El monitor quedó **pausado** al terminar, porque despierto todo el mes consume las 750 horas gratuitas que comparten mis servicios de Render.
+- **Repetida el 26/11/2026** (los datos guardan 30 días): suspendí la api de PROD a las 15:54 (Render → Events). El monitor detectó la caída a las 15:58:05 (~4 min, dentro del peor caso de 5). Reanudé a las 15:59, pero el UP llegó a las 16:13:17: el monitor contó 15 min 12 s de caída cuando el servicio estuvo apagado unos 5. La diferencia sale de que el monitor solo mira cada 5 minutos y de que, al reanudar, el servicio quedó arrancando en frío (cold start). La alerta sirvió para enterarme rápido, pero su duración no es el tiempo real de la caída. Al terminar, volví a pausar el monitor.
 
 ### 4. Sentry: qué falla, qué tarda y qué se usa
 - **Back**: `@sentry/node`, cargado con `node --import ./src/instrument.js` (el servidor usa módulos ES; Sentry tiene que cargarse antes que Express y `pg` para poder medir). Su DSN va en la variable `SENTRY_DSN` de Render, no en el código. **Front**: `@sentry/react`; su DSN va en el código porque solo sirve para enviar datos, no para leerlos.
 - **Operación más usada**: `GET /api/dashboard` (~22 pedidos en 24 h). **Más lenta**: `POST /api/expenses`, con P95 de **561 ms** en el backend (650 ms medido desde el navegador). Son pocas muestras, así que el P95 es casi el pedido más lento.
 - **Tarjeta en el tablero del TP3**: «Investigar la lentitud de POST /api/expenses (P95 561 ms)» ([issue #93](https://github.com/bistolfibri/ingsoft3-tp01/issues/93)).
 - **Límite conocido (resuelto)**: mis controllers atrapan los errores con try/catch y responden 500, así que Sentry no los veía. Agregué Sentry.captureException(error) en cada catch para que también los reporte. En QA no manda nada, porque SENTRY_DSN solo está en PROD.
+- **Repetido el 26/11/2026** sin endpoint de prueba: con captureException en los catch, un DELETE /api/expenses/abc contra PROD produce un error real de Postgres (invalid input syntax for type integer) que el controller atrapa, responde 500 y ahora se ve en Sentry con environment: production.
 
 ### 5. Dificultades encontradas y soluciones
 - **`dependabot.yml` en la carpeta equivocada** (`.github/workflows/` en lugar de `.github/`): `git add` decía "pathspec did not match"; lo moví a `.github/`.
