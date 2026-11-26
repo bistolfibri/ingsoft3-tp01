@@ -1,4 +1,5 @@
 import pool from '../config/db.js';
+import * as Sentry from '@sentry/node';
 import {
   calculateCategorizedMetrics,
   determineExpenseStatusAndPriority,
@@ -62,6 +63,7 @@ export async function getDashboardData(req, res) {
     });
   } catch (error) {
     console.error('ERROR POSTGRESQL (getDashboardData):', error.message);
+    Sentry.captureException(error);
     res.status(500).json({ error: 'Error al obtener datos del dashboard', details: error.message });
   }
 }
@@ -94,6 +96,7 @@ export async function createExpense(req, res) {
       return res.status(400).json({ errors: ['La categoría indicada no existe'] });
     }
     console.error('ERROR POSTGRESQL (createExpense):', error.message);
+    Sentry.captureException(error);
     res.status(500).json({ error: 'Error al crear la obligación', details: error.message });
   }
 }
@@ -145,6 +148,7 @@ export async function payExpense(req, res) {
     });
   } catch (error) {
     console.error('ERROR POSTGRESQL (payExpense):', error.message);
+    Sentry.captureException(error);
     res.status(500).json({ error: 'Error al registrar el pago', details: error.message });
   } finally {
     if (client) client.release();
@@ -161,6 +165,7 @@ export async function deleteExpense(req, res) {
     res.json({ message: 'Gasto eliminado correctamente' });
   } catch (error) {
     console.error('ERROR POSTGRESQL (deleteExpense):', error.message);
+    Sentry.captureException(error);
     res.status(500).json({ error: 'Error al eliminar el gasto' });
   }
 }
@@ -183,6 +188,7 @@ export async function updateBudget(req, res) {
     res.json({ message: 'Presupuesto actualizado correctamente', total_budget: amount });
   } catch (error) {
     console.error('ERROR POSTGRESQL (updateBudget):', error.message);
+    Sentry.captureException(error);
     res.status(500).json({ error: 'Error al actualizar el presupuesto' });
   }
 }
